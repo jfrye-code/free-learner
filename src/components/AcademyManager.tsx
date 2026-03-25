@@ -1,198 +1,124 @@
+
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 
-interface AcademyMember {
-  id: string;
-  student_email: string;
-  student_name: string;
-  parent_id: string | null;
-  student_id: string | null;
-  invitation_status: string;
-  slot_number: number;
-  invited_at: string;
-  accepted_at: string | null;
+interface ContentModule {
+  id: string; title: string; description: string; content: string; subject: string;
+  grade_level: string | null; topic: string | null; difficulty: string;
+  is_premium: boolean; is_published: boolean; image_url: string | null;
+  tags: string[]; estimated_duration_minutes: number; created_at: string; updated_at: string;
 }
 
-const MAX_SLOTS = 30;
+const SUBJECTS = ['General', 'Math', 'Science', 'Reading', 'Writing', 'History', 'Art', 'Music', 'Technology', 'Social Studies', 'Physical Education'];
+const GRADES = ['Pre-K', 'Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
+const DIFFICULTIES = ['beginner', 'intermediate', 'advanced'];
 
 const AcademyManager: React.FC = () => {
-  const { user, profile } = useAuth();
-  const [members, setMembers] = useState<AcademyMember[]>([]);
+  const [modules, setModules] = useState<ContentModule[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'slots' | 'invite' | 'progress'>('slots');
+  const [view, setView] = useState<'list' | 'editor' | 'preview'>('list');
+  const [editing, setEditing] = useState<ContentModule | null>(null);
+  const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState<'success' | 'error'>('success');
+  const [saving, setSaving] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'published' | 'draft'>('all');
 
-  // Invite form
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteName, setInviteName] = useState('');
-  const [parentEmail, setParentEmail] = useState('');
-  const [inviting, setInviting] = useState(false);
-  const [inviteSuccess, setInviteSuccess] = useState('');
-  const [inviteError, setInviteError] = useState('');
-
-  // Aggregate stats
-  const [aggregateStats, setAggregateStats] = useState({
-    totalActive: 0,
-    totalModules: 0,
-    avgStreak: 0,
-    topSubjects: [] as string[],
+  const [form, setForm] = useState({
+    title: '', description: '', content: '', subject: 'General', grade_level: '',
+    topic: '', difficulty: 'beginner', is_premium: false, is_published: false,
+    image_url: '', tags: '', estimated_duration_minutes: 15,
   });
 
-  useEffect(() => {
-    loadMembers();
-  }, [user?.id]);
+  useEffect(() => { loadModules(); }, []);
 
-  const loadMembers = async () => {
-    if (!user?.id) return;
+  const loadModules = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from('academy_members')
-        .select('*')
-        .eq('academy_owner_id', user.id)
-        .neq('invitation_status', 'removed')
-        .order('slot_number', { ascending: true });
-      if (data) {
-        setMembers(data);
-        // Calculate aggregate stats
-        const active = data.filter(m => m.invitation_status === 'accepted');
-        setAggregateStats({
-          totalActive: active.length,
-          totalModules: active.length * 12, // Placeholder
-          avgStreak: active.length > 0 ? 7 : 0,
-          topSubjects: ['Math', 'Science', 'History', 'Language Arts'],
-        });
-      }
-    } catch (err) {
-      console.warn('Load members error:', err);
-    }
+      const { data, error } = await supabase.functions.invoke('content-modules', { body: { action: 'list-all' } });
+      if (error) throw error;
+      setModules(data?.modules || []);
+    } catch (e: any) { showMsg(e.message, 'error'); }
     setLoading(false);
   };
 
-  const getNextSlot = () => {
-    const usedSlots = new Set(members.map(m => m.slot_number));
-    for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (!usedSlots.has(i)) return i;
-    }
-    return null;
+  const showMsg = (msg: string, type: 'success' | 'error') => {
+    setMessage(msg); setMessageType(type);
+    setTimeout(() => setMessage(''), 4000);
   };
 
-  const inviteStudent = async () => {
-    if (!inviteEmail.trim() || !inviteName.trim()) {
-      setInviteError('Student name and email are required');
-      return;
-    }
-    const nextSlot = getNextSlot();
-    if (!nextSlot) {
-      setInviteError('All 30 student slots are filled');
-      return;
-    }
+  const resetForm = () => {
+    setForm({ title: '', description: '', content: '', subject: 'General', grade_level: '', topic: '', difficulty: 'beginner', is_premium: false, is_published: false, image_url: '', tags: '', estimated_duration_minutes: 15 });
+    setEditing(null);
+  };
 
-    setInviting(true);
-    setInviteError('');
-    setInviteSuccess('');
-
-    try {
-      // Insert academy member
-      const { error } = await supabase.from('academy_members').insert({
-        academy_owner_id: user?.id,
-        student_email: inviteEmail.trim().toLowerCase(),
-        student_name: inviteName.trim(),
-        parent_id: null,
-        student_id: null,
-        invitation_status: 'pending',
-        slot_number: nextSlot,
+  const openEditor = (mod?: ContentModule) => {
+    if (mod) {
+      setEditing(mod);
+      setForm({
+        title: mod.title, description: mod.description || '', content: mod.content || '',
+        subject: mod.subject, grade_level: mod.grade_level || '', topic: mod.topic || '',
+        difficulty: mod.difficulty, is_premium: mod.is_premium, is_published: mod.is_published,
+        image_url: mod.image_url || '', tags: (mod.tags || []).join(', '),
+        estimated_duration_minutes: mod.estimated_duration_minutes || 15,
       });
+    } else { resetForm(); }
+    setView('editor');
+  };
 
-      if (error) throw error;
+  const handleSave = async (publish?: boolean) => {
+    if (!form.title.trim()) { showMsg('Title is required', 'error'); return; }
+    setSaving(true);
+    try {
+      const payload: any = {
+        ...form, tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+        grade_level: form.grade_level || null, topic: form.topic || null,
+        image_url: form.image_url || null,
+      };
+      if (publish !== undefined) payload.is_published = publish;
 
-      // Send invitation email
-      try {
-        await supabase.functions.invoke('send-parent-alert', {
-          body: {
-            alertType: 'academy_invitation',
-            parentEmail: parentEmail.trim() || inviteEmail.trim(),
-            parentName: '',
-            childName: inviteName.trim(),
-            data: {
-              academyName: profile?.school_name || 'FreeLearner Academy',
-              ownerName: profile?.full_name || 'Your educator',
-              acceptLink: '#',
-            },
-          },
-        });
-      } catch {
-        // Email send failure is non-critical
+      if (editing) {
+        payload.action = 'update'; payload.id = editing.id;
+      } else {
+        payload.action = 'create';
       }
 
-      setInviteSuccess(`Invitation sent to ${inviteName}!`);
-      setInviteEmail('');
-      setInviteName('');
-      setParentEmail('');
-      loadMembers();
-      setTimeout(() => setInviteSuccess(''), 4000);
-    } catch (err: any) {
-      setInviteError(err.message || 'Failed to invite student');
-    }
-    setInviting(false);
+      const { data, error } = await supabase.functions.invoke('content-modules', { body: payload });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      showMsg(editing ? 'Module updated!' : 'Module created!', 'success');
+      loadModules();
+      setView('list');
+      resetForm();
+    } catch (e: any) { showMsg(e.message, 'error'); }
+    setSaving(false);
   };
 
-  const removeStudent = async (id: string, name: string) => {
-    if (!confirm(`Remove ${name} from the Academy? They will lose access.`)) return;
+  const togglePublish = async (mod: ContentModule) => {
     try {
-      await supabase.from('academy_members')
-        .update({ invitation_status: 'removed', updated_at: new Date().toISOString() })
-        .eq('id', id);
-      loadMembers();
-    } catch (err) {
-      console.error('Remove error:', err);
-    }
-  };
-
-  const resendInvite = async (member: AcademyMember) => {
-    try {
-      await supabase.functions.invoke('send-parent-alert', {
-        body: {
-          alertType: 'academy_invitation',
-          parentEmail: member.student_email,
-          parentName: '',
-          childName: member.student_name,
-          data: {
-            academyName: profile?.school_name || 'FreeLearner Academy',
-            ownerName: profile?.full_name || 'Your educator',
-            acceptLink: '#',
-          },
-        },
+      const { error } = await supabase.functions.invoke('content-modules', {
+        body: { action: 'toggle-publish', id: mod.id, is_published: !mod.is_published }
       });
-      alert('Invitation resent!');
-    } catch {
-      alert('Failed to resend invitation');
-    }
+      if (error) throw error;
+      setModules(prev => prev.map(m => m.id === mod.id ? { ...m, is_published: !m.is_published } : m));
+      showMsg(mod.is_published ? 'Unpublished' : 'Published!', 'success');
+    } catch (e: any) { showMsg(e.message, 'error'); }
   };
 
-  const assignParent = async (memberId: string, email: string) => {
-    // In a real system, this would look up the parent by email
-    // For now, we store the parent email association
+  const deleteModule = async (id: string) => {
+    if (!confirm('Delete this content module?')) return;
     try {
-      await supabase.from('academy_members')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', memberId);
-    } catch (err) {
-      console.error('Assign parent error:', err);
-    }
+      await supabase.functions.invoke('content-modules', { body: { action: 'delete', id } });
+      setModules(prev => prev.filter(m => m.id !== id));
+      showMsg('Module deleted', 'success');
+    } catch (e: any) { showMsg(e.message, 'error'); }
   };
 
-  const statusColor = (status: string) => {
-    switch (status) {
-      case 'accepted': return 'bg-green-100 text-green-700';
-      case 'pending': return 'bg-amber-100 text-amber-700';
-      case 'declined': return 'bg-red-100 text-red-700';
-      default: return 'bg-gray-100 text-gray-600';
-    }
-  };
-
-  const filledSlots = members.length;
-  const availableSlots = MAX_SLOTS - filledSlots;
+  const filteredModules = modules.filter(m => {
+    if (filter === 'published') return m.is_published;
+    if (filter === 'draft') return !m.is_published;
+    return true;
+  });
 
   if (loading) {
     return (
@@ -203,138 +129,91 @@ const AcademyManager: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Stats Bar */}
-      <div className="grid sm:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center mb-3">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2" strokeLinecap="round"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          </div>
-          <p className="font-heading font-bold text-2xl text-charcoal">{filledSlots}/{MAX_SLOTS}</p>
-          <p className="font-body text-xs text-charcoal/40">Student Slots Used</p>
+    <div>
+      {message && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-xl shadow-lg font-body font-semibold text-sm text-white ${messageType === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
+          {message}
         </div>
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center mb-3">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2" strokeLinecap="round"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          </div>
-          <p className="font-heading font-bold text-2xl text-charcoal">{members.filter(m => m.invitation_status === 'accepted').length}</p>
-          <p className="font-body text-xs text-charcoal/40">Active Students</p>
-        </div>
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center mb-3">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          </div>
-          <p className="font-heading font-bold text-2xl text-charcoal">{members.filter(m => m.invitation_status === 'pending').length}</p>
-          <p className="font-body text-xs text-charcoal/40">Pending Invites</p>
-        </div>
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center mb-3">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-          </div>
-          <p className="font-heading font-bold text-2xl text-charcoal">{availableSlots}</p>
-          <p className="font-body text-xs text-charcoal/40">Available Slots</p>
-        </div>
-      </div>
+      )}
 
-      {/* Sub-tabs */}
-      <div className="flex gap-2 border-b border-gray-200 pb-0">
-        {[
-          { id: 'slots' as const, label: 'Student Slots', icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z' },
-          { id: 'invite' as const, label: 'Invite Students', icon: 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z' },
-          { id: 'progress' as const, label: 'Aggregate Progress', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setView(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 font-body text-sm font-semibold border-b-2 transition-all ${
-              view === tab.id ? 'text-teal border-teal' : 'text-charcoal/40 border-transparent hover:text-charcoal/60'
-            }`}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={tab.icon}/></svg>
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* STUDENT SLOTS VIEW */}
-      {view === 'slots' && (
+      {/* LIST VIEW */}
+      {view === 'list' && (
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-heading font-bold text-lg text-charcoal">Student Slots ({filledSlots}/{MAX_SLOTS})</h3>
-            <button onClick={() => setView('invite')} className="px-4 py-2 bg-teal text-white font-body text-sm font-semibold rounded-xl hover:bg-teal-dark transition-all flex items-center gap-2">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="font-heading font-bold text-xl text-charcoal">Content Modules</h2>
+              <p className="font-body text-sm text-charcoal/40">{modules.length} modules ({modules.filter(m => m.is_published).length} published)</p>
+            </div>
+            <button onClick={() => openEditor()} className="px-4 py-2 bg-teal hover:bg-teal-dark text-white font-body text-sm font-semibold rounded-lg transition-all flex items-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Invite Student
+              New Module
             </button>
           </div>
 
-          {/* Slot capacity bar */}
-          <div className="mb-6 bg-white rounded-xl p-4 border border-gray-100">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-body text-sm text-charcoal/60">Capacity</span>
-              <span className="font-body text-sm font-semibold text-charcoal">{filledSlots} of {MAX_SLOTS} slots used</span>
-            </div>
-            <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-teal to-teal-dark rounded-full transition-all" style={{ width: `${(filledSlots / MAX_SLOTS) * 100}%` }} />
-            </div>
+          {/* Filters */}
+          <div className="flex gap-2 mb-4">
+            {(['all', 'published', 'draft'] as const).map(f => (
+              <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded-lg font-body text-xs font-semibold transition-all capitalize ${filter === f ? 'bg-teal text-white' : 'bg-gray-100 text-charcoal/50 hover:bg-gray-200'}`}>
+                {f} ({f === 'all' ? modules.length : f === 'published' ? modules.filter(m => m.is_published).length : modules.filter(m => !m.is_published).length})
+              </button>
+            ))}
           </div>
 
-          {members.length === 0 ? (
+          {filteredModules.length === 0 ? (
             <div className="bg-white rounded-2xl p-12 border border-gray-100 text-center">
-              <svg className="mx-auto mb-4" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="1.5" strokeLinecap="round"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-              <p className="font-heading font-bold text-charcoal mb-2">No students yet</p>
-              <p className="font-body text-sm text-charcoal/40 mb-4">Invite students to join your Academy and start learning!</p>
-              <button onClick={() => setView('invite')} className="px-6 py-2.5 bg-teal text-white font-body text-sm font-semibold rounded-xl hover:bg-teal-dark transition-all">
-                Invite First Student
-              </button>
+              <svg className="mx-auto mb-4" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="1.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <p className="font-heading font-bold text-charcoal mb-2">No content modules yet</p>
+              <p className="font-body text-sm text-charcoal/40">Create your first learning module to get started.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {members.map(member => (
-                <div key={member.id} className="bg-white rounded-xl p-4 border border-gray-100 hover:shadow-md transition-all">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-teal to-teal-dark rounded-full flex items-center justify-center text-white font-heading font-bold text-sm">
-                        {member.student_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+              {filteredModules.map(mod => (
+                <div key={mod.id} className="bg-white rounded-xl p-5 border border-gray-100 hover:shadow-md transition-all">
+                  <div className="flex items-start gap-4">
+                    {mod.image_url ? (
+                      <img src={mod.image_url} alt="" className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-teal-100 to-teal-200 flex items-center justify-center flex-shrink-0">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-heading font-bold text-sm text-charcoal">{member.student_name}</p>
-                          <span className="font-body text-[10px] text-charcoal/30">Slot #{member.slot_number}</span>
-                        </div>
-                        <p className="font-body text-xs text-charcoal/40">{member.student_email}</p>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-heading font-bold text-sm text-charcoal truncate">{mod.title}</h4>
+                        <span className={`px-2 py-0.5 rounded-full font-body text-[10px] font-bold ${mod.is_published ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-charcoal/40'}`}>
+                          {mod.is_published ? 'Published' : 'Draft'}
+                        </span>
+                        {mod.is_premium && (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-body text-[10px] font-bold">Premium</span>
+                        )}
+                      </div>
+                      <p className="font-body text-xs text-charcoal/50 line-clamp-1">{mod.description}</p>
+                      <div className="flex items-center gap-3 mt-2 flex-wrap">
+                        <span className="font-body text-[10px] text-charcoal/40">{mod.subject}</span>
+                        {mod.grade_level && <span className="font-body text-[10px] text-charcoal/40">{mod.grade_level}</span>}
+                        <span className="font-body text-[10px] text-charcoal/40 capitalize">{mod.difficulty}</span>
+                        <span className="font-body text-[10px] text-charcoal/40">{mod.estimated_duration_minutes} min</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2.5 py-1 rounded-full font-body text-xs font-semibold capitalize ${statusColor(member.invitation_status)}`}>
-                        {member.invitation_status}
-                      </span>
-                      {member.invitation_status === 'pending' && (
-                        <button onClick={() => resendInvite(member)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500 transition-all" title="Resend invitation">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                        </button>
-                      )}
-                      <button onClick={() => removeStudent(member.id, member.student_name)} className="p-1.5 hover:bg-red-50 rounded-lg text-charcoal/30 hover:text-red-500 transition-all" title="Remove student">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button onClick={() => { setEditing(mod); setForm({ ...form, content: mod.content || '' }); setView('preview'); }} className="p-2 hover:bg-gray-100 rounded-lg text-charcoal/30 hover:text-teal transition-all" title="Preview">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </button>
+                      <button onClick={() => openEditor(mod)} className="p-2 hover:bg-gray-100 rounded-lg text-charcoal/30 hover:text-teal transition-all" title="Edit">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button onClick={() => togglePublish(mod)} className={`p-2 rounded-lg transition-all ${mod.is_published ? 'hover:bg-amber-50 text-charcoal/30 hover:text-amber-600' : 'hover:bg-green-50 text-charcoal/30 hover:text-green-600'}`} title={mod.is_published ? 'Unpublish' : 'Publish'}>
+                        {mod.is_published ? (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                        ) : (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        )}
+                      </button>
+                      <button onClick={() => deleteModule(mod.id)} className="p-2 hover:bg-red-50 rounded-lg text-charcoal/30 hover:text-red-500 transition-all" title="Delete">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                       </button>
                     </div>
                   </div>
-                  {member.invitation_status === 'accepted' && (
-                    <div className="mt-3 pt-3 border-t border-gray-50 flex items-center gap-4">
-                      <div className="flex items-center gap-1">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2" strokeLinecap="round"><path d="M9 12l2 2 4-4"/></svg>
-                        <span className="font-body text-xs text-green-600">Active</span>
-                      </div>
-                      <span className="font-body text-xs text-charcoal/30">
-                        Joined {member.accepted_at ? new Date(member.accepted_at).toLocaleDateString() : 'recently'}
-                      </span>
-                      {member.parent_id && (
-                        <span className="font-body text-xs text-blue-500 flex items-center gap-1">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                          Parent linked
-                        </span>
-                      )}
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -342,184 +221,125 @@ const AcademyManager: React.FC = () => {
         </div>
       )}
 
-      {/* INVITE VIEW */}
-      {view === 'invite' && (
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-2xl p-6 lg:p-8 shadow-sm border border-gray-100">
-            <h3 className="font-heading font-bold text-xl text-charcoal mb-1">Invite Student to Academy</h3>
-            <p className="font-body text-sm text-charcoal/40 mb-6">
-              Send an invitation email to a student (or their parent) to join your Academy. 
-              You have {availableSlots} slots remaining.
-            </p>
-
-            {inviteSuccess && (
-              <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3 animate-fade-in">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2" strokeLinecap="round"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <p className="font-body text-sm text-green-700 font-semibold">{inviteSuccess}</p>
-              </div>
-            )}
-            {inviteError && (
-              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                <p className="font-body text-sm text-red-700">{inviteError}</p>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              <div>
-                <label className="font-body text-sm font-semibold text-charcoal/70 mb-1.5 block">Student Name *</label>
-                <input
-                  type="text"
-                  value={inviteName}
-                  onChange={e => setInviteName(e.target.value)}
-                  placeholder="Enter student's full name"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 font-body text-sm bg-cream focus:outline-none focus:ring-2 focus:ring-teal/30"
-                />
-              </div>
-              <div>
-                <label className="font-body text-sm font-semibold text-charcoal/70 mb-1.5 block">Student Email *</label>
-                <input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={e => setInviteEmail(e.target.value)}
-                  placeholder="student@example.com"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 font-body text-sm bg-cream focus:outline-none focus:ring-2 focus:ring-teal/30"
-                />
-              </div>
-              <div>
-                <label className="font-body text-sm font-semibold text-charcoal/70 mb-1.5 block">Parent Email (optional)</label>
-                <p className="font-body text-xs text-charcoal/40 mb-1.5">If different from student email. The parent will get a linked parent portal.</p>
-                <input
-                  type="email"
-                  value={parentEmail}
-                  onChange={e => setParentEmail(e.target.value)}
-                  placeholder="parent@example.com"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 font-body text-sm bg-cream focus:outline-none focus:ring-2 focus:ring-teal/30"
-                />
-              </div>
-
-              <div className="bg-blue-50 rounded-xl p-4 flex items-start gap-3">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" className="flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                <div>
-                  <p className="font-body text-sm font-semibold text-blue-800">How it works</p>
-                  <p className="font-body text-xs text-blue-600 mt-1">
-                    The student (or parent) will receive an email invitation to join your Academy. 
-                    Once they accept, they'll get full access to FreeLearner with a linked parent portal 
-                    for monitoring progress. One parent account can manage multiple students.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={inviteStudent}
-                disabled={inviting || !inviteName.trim() || !inviteEmail.trim() || availableSlots <= 0}
-                className="w-full py-3.5 bg-teal hover:bg-teal-dark text-white font-heading font-bold rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {inviting ? (
-                  <>
-                    <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity="0.3"/><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
-                    Sending Invitation...
-                  </>
-                ) : (
-                  <>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                    Send Invitation
-                  </>
-                )}
+      {/* EDITOR VIEW */}
+      {view === 'editor' && (
+        <div>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <button onClick={() => { setView('list'); resetForm(); }} className="p-2 hover:bg-gray-100 rounded-lg text-charcoal/40 transition-all">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <h2 className="font-heading font-bold text-xl text-charcoal">{editing ? 'Edit Module' : 'Create Module'}</h2>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => handleSave(false)} disabled={saving} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-charcoal font-body text-sm font-semibold rounded-lg transition-all disabled:opacity-50">
+                {saving ? 'Saving...' : 'Save Draft'}
+              </button>
+              <button onClick={() => handleSave(true)} disabled={saving} className="px-4 py-2 bg-teal hover:bg-teal-dark text-white font-body text-sm font-semibold rounded-lg transition-all disabled:opacity-50">
+                {saving ? 'Publishing...' : 'Save & Publish'}
               </button>
             </div>
           </div>
 
-          {/* Bulk invite hint */}
-          <div className="mt-4 bg-gradient-to-r from-teal/5 to-orange/5 rounded-2xl p-5 border border-teal/10">
-            <div className="flex items-start gap-3">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2" strokeLinecap="round" className="flex-shrink-0 mt-0.5"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-              <div>
-                <p className="font-heading font-bold text-sm text-charcoal">Tip: Parent Portal Linking</p>
-                <p className="font-body text-xs text-charcoal/50 mt-1">
-                  One parent account can be linked to multiple student accounts. When you provide a parent email, 
-                  they'll automatically get a parent portal that shows all their children's progress in one place.
-                </p>
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* Main content */}
+            <div className="lg:col-span-2 space-y-5">
+              <div className="bg-white rounded-2xl p-6 border border-gray-100">
+                <div className="space-y-4">
+                  <div>
+                    <label className="font-body text-sm font-semibold text-charcoal/70 mb-1.5 block">Title *</label>
+                    <input type="text" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g., Introduction to Fractions" className="w-full px-4 py-3 rounded-xl border border-gray-200 font-body text-sm bg-cream focus:outline-none focus:ring-2 focus:ring-teal/30" />
+                  </div>
+                  <div>
+                    <label className="font-body text-sm font-semibold text-charcoal/70 mb-1.5 block">Description</label>
+                    <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Brief description of this lesson..." rows={2} className="w-full px-4 py-3 rounded-xl border border-gray-200 font-body text-sm bg-cream focus:outline-none focus:ring-2 focus:ring-teal/30 resize-none" />
+                  </div>
+                  <div>
+                    <label className="font-body text-sm font-semibold text-charcoal/70 mb-1.5 block">Lesson Content (Markdown supported)</label>
+                    <textarea value={form.content} onChange={e => setForm(p => ({ ...p, content: e.target.value }))} placeholder="Write your lesson content here... Use Markdown for formatting: # Heading, **bold**, *italic*, - list items" rows={16} className="w-full px-4 py-3 rounded-xl border border-gray-200 font-body text-sm bg-cream focus:outline-none focus:ring-2 focus:ring-teal/30 resize-y font-mono" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Sidebar settings */}
+            <div className="space-y-5">
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 space-y-4">
+                <h3 className="font-heading font-bold text-sm text-charcoal">Settings</h3>
+                <div>
+                  <label className="font-body text-xs font-semibold text-charcoal/60 mb-1 block">Subject</label>
+                  <select value={form.subject} onChange={e => setForm(p => ({ ...p, subject: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 font-body text-sm bg-cream focus:outline-none focus:ring-2 focus:ring-teal/30">
+                    {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="font-body text-xs font-semibold text-charcoal/60 mb-1 block">Grade Level</label>
+                  <select value={form.grade_level} onChange={e => setForm(p => ({ ...p, grade_level: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 font-body text-sm bg-cream focus:outline-none focus:ring-2 focus:ring-teal/30">
+                    <option value="">All grades</option>
+                    {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="font-body text-xs font-semibold text-charcoal/60 mb-1 block">Topic</label>
+                  <input type="text" value={form.topic} onChange={e => setForm(p => ({ ...p, topic: e.target.value }))} placeholder="e.g., Algebra, Biology" className="w-full px-3 py-2 rounded-lg border border-gray-200 font-body text-sm bg-cream focus:outline-none focus:ring-2 focus:ring-teal/30" />
+                </div>
+                <div>
+                  <label className="font-body text-xs font-semibold text-charcoal/60 mb-1 block">Difficulty</label>
+                  <select value={form.difficulty} onChange={e => setForm(p => ({ ...p, difficulty: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 font-body text-sm bg-cream focus:outline-none focus:ring-2 focus:ring-teal/30">
+                    {DIFFICULTIES.map(d => <option key={d} value={d} className="capitalize">{d}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="font-body text-xs font-semibold text-charcoal/60 mb-1 block">Duration (minutes)</label>
+                  <input type="number" value={form.estimated_duration_minutes} onChange={e => setForm(p => ({ ...p, estimated_duration_minutes: parseInt(e.target.value) || 15 }))} min={5} max={120} className="w-full px-3 py-2 rounded-lg border border-gray-200 font-body text-sm bg-cream focus:outline-none focus:ring-2 focus:ring-teal/30" />
+                </div>
+                <div>
+                  <label className="font-body text-xs font-semibold text-charcoal/60 mb-1 block">Tags (comma separated)</label>
+                  <input type="text" value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} placeholder="e.g., math, fractions, numbers" className="w-full px-3 py-2 rounded-lg border border-gray-200 font-body text-sm bg-cream focus:outline-none focus:ring-2 focus:ring-teal/30" />
+                </div>
+                <div>
+                  <label className="font-body text-xs font-semibold text-charcoal/60 mb-1 block">Image URL</label>
+                  <input type="url" value={form.image_url} onChange={e => setForm(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." className="w-full px-3 py-2 rounded-lg border border-gray-200 font-body text-sm bg-cream focus:outline-none focus:ring-2 focus:ring-teal/30" />
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <span className="font-body text-sm text-charcoal/70">Premium Content</span>
+                  <button onClick={() => setForm(p => ({ ...p, is_premium: !p.is_premium }))} className={`w-10 h-5 rounded-full transition-all relative ${form.is_premium ? 'bg-amber-500' : 'bg-gray-300'}`}>
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${form.is_premium ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* AGGREGATE PROGRESS VIEW */}
-      {view === 'progress' && (
-        <div className="space-y-6">
-          <h3 className="font-heading font-bold text-lg text-charcoal">Academy-Wide Progress</h3>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm text-center">
-              <p className="font-heading font-bold text-3xl text-teal">{aggregateStats.totalActive}</p>
-              <p className="font-body text-xs text-charcoal/40 mt-1">Active Learners</p>
+      {/* PREVIEW VIEW */}
+      {view === 'preview' && editing && (
+        <div>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <button onClick={() => { setView('list'); setEditing(null); }} className="p-2 hover:bg-gray-100 rounded-lg text-charcoal/40 transition-all">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <h2 className="font-heading font-bold text-xl text-charcoal">Preview: {editing.title}</h2>
             </div>
-            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm text-center">
-              <p className="font-heading font-bold text-3xl text-blue-600">{aggregateStats.totalModules}</p>
-              <p className="font-body text-xs text-charcoal/40 mt-1">Total Modules Completed</p>
-            </div>
-            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm text-center">
-              <p className="font-heading font-bold text-3xl text-amber-600">{aggregateStats.avgStreak}d</p>
-              <p className="font-body text-xs text-charcoal/40 mt-1">Average Streak</p>
-            </div>
-            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm text-center">
-              <p className="font-heading font-bold text-3xl text-purple-600">{aggregateStats.topSubjects.length}</p>
-              <p className="font-body text-xs text-charcoal/40 mt-1">Subjects Covered</p>
-            </div>
+            <button onClick={() => openEditor(editing)} className="px-4 py-2 bg-teal hover:bg-teal-dark text-white font-body text-sm font-semibold rounded-lg transition-all">
+              Edit
+            </button>
           </div>
 
-          {/* Student Progress List */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-            <h4 className="font-heading font-bold text-sm text-charcoal mb-4">Individual Student Progress</h4>
-            {members.filter(m => m.invitation_status === 'accepted').length === 0 ? (
-              <div className="text-center py-8">
-                <p className="font-body text-sm text-charcoal/40">No active students yet. Invite students to see their progress here.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {members.filter(m => m.invitation_status === 'accepted').map(member => (
-                  <div key={member.id} className="flex items-center justify-between p-3 rounded-xl bg-cream/50 hover:bg-cream transition-all">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-teal-50 rounded-full flex items-center justify-center font-heading font-bold text-teal text-sm">
-                        {member.student_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                      </div>
-                      <div>
-                        <p className="font-heading font-bold text-sm text-charcoal">{member.student_name}</p>
-                        <p className="font-body text-xs text-charcoal/40">Slot #{member.slot_number}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="font-body text-xs text-charcoal/40">Progress</p>
-                        <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden mt-1">
-                          <div className="h-full bg-teal rounded-full" style={{ width: `${Math.random() * 60 + 20}%` }} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Top Subjects */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-            <h4 className="font-heading font-bold text-sm text-charcoal mb-4">Most Popular Subjects</h4>
-            <div className="space-y-3">
-              {aggregateStats.topSubjects.map((subject, i) => (
-                <div key={subject} className="flex items-center gap-3">
-                  <span className="font-body text-sm text-charcoal/70 w-28">{subject}</span>
-                  <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all" style={{
-                      width: `${90 - i * 15}%`,
-                      backgroundColor: ['#0D7377', '#3B82F6', '#F59E0B', '#8B5CF6'][i] || '#6B7280'
-                    }} />
-                  </div>
-                  <span className="font-body text-xs text-charcoal/40 w-10 text-right">{90 - i * 15}%</span>
-                </div>
-              ))}
+          <div className="bg-white rounded-2xl p-8 border border-gray-100 max-w-3xl mx-auto">
+            {editing.image_url && <img src={editing.image_url} alt="" className="w-full h-48 object-cover rounded-xl mb-6" />}
+            <div className="flex items-center gap-2 mb-4">
+              <span className="px-3 py-1 bg-teal-50 text-teal rounded-full font-body text-xs font-bold">{editing.subject}</span>
+              {editing.grade_level && <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full font-body text-xs font-bold">{editing.grade_level}</span>}
+              <span className="px-3 py-1 bg-gray-100 text-charcoal/50 rounded-full font-body text-xs font-bold capitalize">{editing.difficulty}</span>
+              {editing.is_premium && <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full font-body text-xs font-bold">Premium</span>}
+            </div>
+            <h1 className="font-heading font-bold text-2xl text-charcoal mb-3">{editing.title}</h1>
+            <p className="font-body text-charcoal/60 mb-6">{editing.description}</p>
+            <div className="prose prose-sm max-w-none font-body text-charcoal/80 whitespace-pre-wrap">
+              {editing.content || 'No content yet.'}
             </div>
           </div>
         </div>

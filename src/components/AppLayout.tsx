@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import Navbar from './Navbar';
@@ -24,10 +24,76 @@ import AdminPage from '@/pages/AdminPage';
 import TermsPage from '@/pages/TermsPage';
 import PrivacyPage from '@/pages/PrivacyPage';
 import ReferralPage from '@/pages/ReferralPage';
+import ReferralLandingPage from '@/pages/ReferralLandingPage';
+import { supabase } from '@/lib/supabase';
 
 const AppLayout: React.FC = () => {
-  const { currentPage } = useAppContext();
-  const { isLoading } = useAuth();
+  const { currentPage, setCurrentPage, setShowLoginModal } = useAppContext();
+  const { isLoading, isAuthenticated } = useAuth();
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [showReferralLanding, setShowReferralLanding] = useState(false);
+
+  // Check for ?ref= parameter on initial load
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const ref = urlParams.get('ref');
+    if (ref) {
+      setReferralCode(ref);
+      // Store in localStorage for signup tracking
+      localStorage.setItem('fl_referral_code', ref);
+      localStorage.setItem('fl_referral_time', new Date().toISOString());
+      // Show referral landing page if user is not authenticated
+      if (!isAuthenticated) {
+        setShowReferralLanding(true);
+      }
+      // Clean the URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [isAuthenticated]);
+
+  // Track referral signup when user becomes authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      const storedRef = localStorage.getItem('fl_referral_code');
+      const storedTime = localStorage.getItem('fl_referral_time');
+      if (storedRef && storedTime) {
+        // Only track if the referral was stored within the last 24 hours
+        const refTime = new Date(storedTime).getTime();
+        const now = Date.now();
+        if (now - refTime < 24 * 60 * 60 * 1000) {
+          trackReferralSignup(storedRef);
+        }
+        // Clear the stored referral
+        localStorage.removeItem('fl_referral_code');
+        localStorage.removeItem('fl_referral_time');
+      }
+      // Hide referral landing if showing
+      setShowReferralLanding(false);
+    }
+  }, [isAuthenticated]);
+
+  const trackReferralSignup = async (code: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await supabase.functions.invoke('track-referral', {
+          body: {
+            action: 'signup-completed',
+            referral_code: code,
+            new_user_email: session.user.email,
+            new_user_id: session.user.id,
+          },
+        });
+      }
+    } catch (err) {
+      console.warn('Referral signup tracking error:', err);
+    }
+  };
+
+  const handleReferralContinue = () => {
+    setShowReferralLanding(false);
+    setCurrentPage('home');
+  };
 
   if (isLoading) {
     return (
@@ -42,6 +108,16 @@ const AppLayout: React.FC = () => {
           <p className="font-body text-sm text-charcoal/50">Loading FreeLearner...</p>
         </div>
       </div>
+    );
+  }
+
+  // Show referral landing page
+  if (showReferralLanding && referralCode && !isAuthenticated) {
+    return (
+      <>
+        <LoginModal />
+        <ReferralLandingPage referralCode={referralCode} onContinue={handleReferralContinue} />
+      </>
     );
   }
 

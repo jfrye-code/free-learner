@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import AdminReferralLeaderboard from '@/components/AdminReferralLeaderboard';
+import AdminCampaigns from '@/components/AdminCampaigns';
+import AdminUsers from '@/components/AdminUsers';
+import AdminAnalytics from '@/components/AdminAnalytics';
+import AcademyManager from '@/components/AcademyManager';
 
 interface DiscountCode {
   id: string;
@@ -19,13 +24,27 @@ interface DiscountCode {
   created_at: string;
 }
 
+interface AdminStats {
+  total_users: number;
+  role_counts: Record<string, number>;
+  total_codes: number;
+  active_codes: number;
+  total_redemptions: number;
+  total_referrals: number;
+}
+
 const AdminPage: React.FC = () => {
   const { setCurrentPage } = useAppContext();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminRole, setAdminRole] = useState<string | null>(null);
+  const [adminEmail, setAdminEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [codes, setCodes] = useState<DiscountCode[]>([]);
-  const [activeTab, setActiveTab] = useState<'codes' | 'create'>('codes');
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'codes' | 'create' | 'referrals' | 'campaigns' | 'users' | 'analytics' | 'content'>('overview');
+
+
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
 
@@ -53,26 +72,26 @@ const AdminPage: React.FC = () => {
         body: { action: 'check-admin' },
       });
       setIsAdmin(data?.isAdmin || false);
-      if (data?.isAdmin) loadCodes();
+      setAdminRole(data?.role || null);
+      setAdminEmail(data?.email || null);
+      if (data?.isAdmin) {
+        loadCodes();
+        loadStats();
+      }
     } catch (err) {
       console.warn('Admin check error:', err);
     }
     setLoading(false);
   };
 
-  const becomeAdmin = async () => {
+  const loadStats = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('manage-discount-codes', {
-        body: { action: 'make-admin' },
+      const { data } = await supabase.functions.invoke('manage-discount-codes', {
+        body: { action: 'admin-stats' },
       });
-      if (error) throw error;
-      if (data?.success) {
-        setIsAdmin(true);
-        loadCodes();
-        showMessage('Admin access granted!', 'success');
-      }
-    } catch (err: any) {
-      showMessage(err.message || 'Failed to grant admin access', 'error');
+      if (data) setStats(data);
+    } catch (err) {
+      console.warn('Stats load error:', err);
     }
   };
 
@@ -157,7 +176,10 @@ const AdminPage: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center">
-        <svg className="animate-spin" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity="0.2"/><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+        <div className="text-center">
+          <svg className="animate-spin mx-auto" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity="0.2"/><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+          <p className="font-body text-sm text-charcoal/40 mt-3">Verifying admin access...</p>
+        </div>
       </div>
     );
   }
@@ -166,15 +188,17 @@ const AdminPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center">
         <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100 max-w-md w-full text-center">
-          <div className="w-16 h-16 mx-auto mb-4 bg-amber-50 rounded-2xl flex items-center justify-center">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <div className="w-16 h-16 mx-auto mb-4 bg-red-50 rounded-2xl flex items-center justify-center">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
-          <h2 className="font-heading font-bold text-xl text-charcoal mb-2">Admin Access Required</h2>
-          <p className="font-body text-sm text-charcoal/50 mb-6">You need admin privileges to access this page. If you are the site owner, click below to set up admin access.</p>
-          <button onClick={becomeAdmin} className="px-6 py-3 bg-teal hover:bg-teal-dark text-white font-body font-bold rounded-xl transition-all mb-3 w-full">
-            Set Up Admin Access
-          </button>
-          <button onClick={() => { setCurrentPage('home'); window.scrollTo({ top: 0 }); }} className="font-body text-sm text-charcoal/40 hover:text-charcoal transition-colors">
+          <h2 className="font-heading font-bold text-xl text-charcoal mb-2">Access Denied</h2>
+          <p className="font-body text-sm text-charcoal/50 mb-2">
+            This admin panel is restricted to authorized administrators only.
+          </p>
+          <p className="font-body text-xs text-charcoal/30 mb-6">
+            If you believe you should have access, contact the master admin at jfrye@zen-fish.com.
+          </p>
+          <button onClick={() => { setCurrentPage('home'); window.scrollTo({ top: 0 }); }} className="px-6 py-3 bg-charcoal hover:bg-charcoal/80 text-white font-body font-bold rounded-xl transition-all w-full">
             Back to Home
           </button>
         </div>
@@ -200,30 +224,127 @@ const AdminPage: React.FC = () => {
 
       {/* Header */}
       <div className="bg-white border-b border-gray-100">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="font-heading font-bold text-xl text-charcoal">Admin Panel</h1>
-              <p className="font-body text-xs text-charcoal/40">Manage discount codes and site settings</p>
+              <div className="flex items-center gap-3">
+                <h1 className="font-heading font-bold text-xl text-charcoal">Admin Panel</h1>
+                {adminRole === 'master_admin' && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-white font-body text-[10px] font-bold uppercase tracking-wider">
+                    Master Admin
+                  </span>
+                )}
+              </div>
+              <p className="font-body text-xs text-charcoal/40 mt-0.5">
+                Logged in as {adminEmail || profile?.email} · Manage coupons, discounts & referrals
+              </p>
             </div>
             <button onClick={() => { setCurrentPage('home'); window.scrollTo({ top: 0 }); }} className="p-2 rounded-lg hover:bg-gray-100 text-charcoal/40 transition-colors">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </button>
           </div>
-          <div className="flex gap-1 mt-3 -mb-px">
+          <div className="flex gap-1 mt-3 -mb-px overflow-x-auto">
             {[
-              { id: 'codes' as const, label: 'Discount Codes' },
-              { id: 'create' as const, label: 'Create New Code' },
+              { id: 'overview' as const, label: 'Overview', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+              { id: 'analytics' as const, label: 'Analytics', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+              { id: 'users' as const, label: 'Users', icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100-8 4 4 0 000 8M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75' },
+              { id: 'content' as const, label: 'Content CMS', icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8' },
+              { id: 'codes' as const, label: 'Discount Codes', icon: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z' },
+              { id: 'create' as const, label: 'Create Code', icon: 'M12 4v16m8-8H4' },
+              { id: 'campaigns' as const, label: 'Campaigns', icon: 'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6' },
+              { id: 'referrals' as const, label: 'Referrals', icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75' },
             ].map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-5 py-2 font-body text-sm font-semibold border-b-2 transition-all ${
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-4 py-2.5 font-body text-sm font-semibold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
                 activeTab === tab.id ? 'text-teal border-teal' : 'text-charcoal/40 border-transparent hover:text-charcoal/60'
-              }`}>{tab.label}</button>
+              }`}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d={tab.icon}/></svg>
+                {tab.label}
+              </button>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {activeTab === 'overview' && (
+          <div>
+            {/* Stats grid */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+              {[
+                { label: 'Total Users', value: stats?.total_users || 0, icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2', color: 'text-teal', bg: 'bg-teal-50' },
+                { label: 'Parents', value: stats?.role_counts?.parent || 0, icon: 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2', color: 'text-blue-600', bg: 'bg-blue-50' },
+                { label: 'Educators', value: stats?.role_counts?.educator || 0, icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253', color: 'text-orange-600', bg: 'bg-orange-50' },
+                { label: 'Active Codes', value: stats?.active_codes || 0, icon: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z', color: 'text-purple-600', bg: 'bg-purple-50' },
+                { label: 'Redemptions', value: stats?.total_redemptions || 0, icon: 'M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z', color: 'text-green-600', bg: 'bg-green-50' },
+                { label: 'Referrals', value: stats?.total_referrals || 0, icon: 'M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z', color: 'text-amber-600', bg: 'bg-amber-50' },
+              ].map(stat => (
+                <div key={stat.label} className={`${stat.bg} rounded-2xl p-5 border border-gray-100`}>
+                  <svg className="mb-3" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d={stat.icon} className={stat.color} />
+                  </svg>
+                  <p className={`font-heading font-bold text-3xl ${stat.color}`}>{stat.value}</p>
+                  <p className="font-body text-xs text-charcoal/40 mt-1">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Quick Actions */}
+            <div className="bg-white rounded-2xl p-6 border border-gray-100 mb-6">
+              <h3 className="font-heading font-bold text-lg text-charcoal mb-4">Quick Actions</h3>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <button onClick={() => setActiveTab('create')} className="p-4 bg-teal-50 hover:bg-teal-100 rounded-xl text-left transition-all border border-teal/10">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  <p className="font-body text-sm font-bold text-teal mt-2">Create Discount Code</p>
+                  <p className="font-body text-xs text-charcoal/40 mt-1">New promo or influencer code</p>
+                </button>
+                <button onClick={() => setActiveTab('codes')} className="p-4 bg-purple-50 hover:bg-purple-100 rounded-xl text-left transition-all border border-purple-100">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round"><path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+                  <p className="font-body text-sm font-bold text-purple-700 mt-2">Manage Codes</p>
+                  <p className="font-body text-xs text-charcoal/40 mt-1">{codes.length} codes total</p>
+                </button>
+                <button onClick={() => setActiveTab('referrals')} className="p-4 bg-amber-50 hover:bg-amber-100 rounded-xl text-left transition-all border border-amber-100">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                  <p className="font-body text-sm font-bold text-amber-700 mt-2">Referral Leaderboard</p>
+                  <p className="font-body text-xs text-charcoal/40 mt-1">Track referral performance</p>
+                </button>
+                <button onClick={() => { loadStats(); loadCodes(); showMessage('Data refreshed!', 'success'); }} className="p-4 bg-green-50 hover:bg-green-100 rounded-xl text-left transition-all border border-green-100">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                  <p className="font-body text-sm font-bold text-green-700 mt-2">Refresh Data</p>
+                  <p className="font-body text-xs text-charcoal/40 mt-1">Reload all admin data</p>
+                </button>
+              </div>
+            </div>
+
+            {/* Admin Info */}
+            <div className="bg-gradient-to-r from-charcoal to-charcoal/90 rounded-2xl p-6 text-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <div>
+                  <p className="font-heading font-bold text-sm">Master Admin Account</p>
+                  <p className="font-body text-xs text-white/50">{adminEmail}</p>
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="font-body text-white/40 text-xs">Role</p>
+                  <p className="font-body font-bold">{adminRole === 'master_admin' ? 'Master Admin' : 'Admin'}</p>
+                </div>
+                <div>
+                  <p className="font-body text-white/40 text-xs">Permissions</p>
+                  <p className="font-body font-bold">Full Access</p>
+                </div>
+                <div>
+                  <p className="font-body text-white/40 text-xs">Security</p>
+                  <p className="font-body font-bold">Email-locked to jfrye@zen-fish.com</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* CODES LIST */}
         {activeTab === 'codes' && (
           <div>
@@ -252,7 +373,7 @@ const AdminPage: React.FC = () => {
                         </div>
                         <div>
                           <p className="font-body text-sm font-semibold text-charcoal">{code.description || 'No description'}</p>
-                          <div className="flex items-center gap-3 mt-1">
+                          <div className="flex items-center gap-3 mt-1 flex-wrap">
                             <span className={`px-2 py-0.5 rounded-full font-body text-xs font-semibold ${
                               code.discount_type === 'free_access' ? 'bg-green-50 text-green-700' :
                               code.discount_type === 'percentage' ? 'bg-blue-50 text-blue-700' :
@@ -321,15 +442,15 @@ const AdminPage: React.FC = () => {
                   <label className="font-body text-sm font-semibold text-charcoal/70 mb-3 block">Discount Type</label>
                   <div className="grid grid-cols-3 gap-3">
                     {[
-                      { id: 'free_access', label: 'Free Access', desc: 'Full free access', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-                      { id: 'percentage', label: 'Percentage Off', desc: '% discount', icon: 'M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z' },
-                      { id: 'fixed', label: 'Fixed Amount', desc: '$ off', icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' },
+                      { id: 'free_access', label: 'Free Access', desc: 'Full free access' },
+                      { id: 'percentage', label: 'Percentage Off', desc: '% discount' },
+                      { id: 'fixed', label: 'Fixed Amount', desc: '$ off' },
                     ].map(type => (
                       <button key={type.id} onClick={() => setNewCode(p => ({ ...p, discount_type: type.id }))} className={`p-4 rounded-xl border-2 text-center transition-all ${
                         newCode.discount_type === type.id ? 'border-teal bg-teal-50' : 'border-gray-200 hover:border-teal/30'
                       }`}>
-                        <svg className="mx-auto mb-2" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={newCode.discount_type === type.id ? '#0D7377' : '#9CA3AF'} strokeWidth="2" strokeLinecap="round"><path d={type.icon}/></svg>
                         <p className="font-body text-xs font-semibold text-charcoal">{type.label}</p>
+                        <p className="font-body text-[10px] text-charcoal/40 mt-1">{type.desc}</p>
                       </button>
                     ))}
                   </div>
@@ -431,6 +552,32 @@ const AdminPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* REFERRAL LEADERBOARD */}
+        {activeTab === 'referrals' && (
+          <AdminReferralLeaderboard />
+        )}
+
+        {/* CAMPAIGNS */}
+        {activeTab === 'campaigns' && (
+          <AdminCampaigns />
+        )}
+
+        {/* USERS */}
+        {activeTab === 'users' && (
+          <AdminUsers />
+        )}
+
+        {/* ANALYTICS */}
+        {activeTab === 'analytics' && (
+          <AdminAnalytics />
+        )}
+
+        {/* CONTENT CMS */}
+        {activeTab === 'content' && (
+          <AcademyManager />
+        )}
+
       </div>
     </div>
   );

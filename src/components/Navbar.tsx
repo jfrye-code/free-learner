@@ -1,13 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Logo from './Logo';
 import { useAppContext } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+
+const MASTER_ADMIN_EMAIL = 'jfrye@zen-fish.com';
 
 const Navbar: React.FC = () => {
   const { currentPage, setCurrentPage, setShowLoginModal } = useAppContext();
   const { isAuthenticated, profile, signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check admin status
+  useEffect(() => {
+    if (isAuthenticated && profile?.email) {
+      // Quick local check for master admin
+      if (profile.email.toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase()) {
+        setIsAdmin(true);
+      } else {
+        // Check via edge function for other admins
+        supabase.functions.invoke('manage-discount-codes', {
+          body: { action: 'check-admin' },
+        }).then(({ data }) => {
+          setIsAdmin(data?.isAdmin || false);
+        }).catch(() => setIsAdmin(false));
+      }
+    } else {
+      setIsAdmin(false);
+    }
+  }, [isAuthenticated, profile?.email]);
+
 
   const navLinks = [
     { label: 'Home', page: 'home' as const },
@@ -248,7 +272,21 @@ const Navbar: React.FC = () => {
                           Account Settings
                         </button>
 
+                        {/* Admin Panel link - only for admins */}
+                        {isAdmin && (
+                          <button
+                            onClick={() => { setCurrentPage('admin'); setUserMenuOpen(false); window.scrollTo({ top: 0 }); }}
+                            className="w-full px-4 py-2.5 text-left text-sm font-body text-amber-600 hover:bg-amber-50 transition-all flex items-center gap-3"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            </svg>
+                            Admin Panel
+                          </button>
+                        )}
+
                         <hr className="my-1 border-gray-100" />
+
 
                         <button
                           onClick={handleLogout}
@@ -379,6 +417,20 @@ const Navbar: React.FC = () => {
                     </svg>
                     Account Settings
                   </button>
+
+                  {/* Admin Panel - mobile */}
+                  {isAdmin && (
+                    <button
+                      onClick={() => { setCurrentPage('admin'); setMobileMenuOpen(false); window.scrollTo({ top: 0 }); }}
+                      className="px-4 py-3 text-left text-sm font-body font-semibold text-amber-600 hover:bg-amber-50 flex items-center gap-2"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                      </svg>
+                      Admin Panel
+                    </button>
+                  )}
+
 
                   <button
                     onClick={() => { handleLogout(); setMobileMenuOpen(false); }}

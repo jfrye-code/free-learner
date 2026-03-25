@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth, NotificationPreferences, ChildAccount } from '@/contexts/AuthContext';
 import { useAppContext } from '@/contexts/AppContext';
+import SubscriptionManager from '@/components/SubscriptionManager';
 
-type SettingsTab = 'profile' | 'children' | 'notifications' | 'security' | 'danger';
+type SettingsTab = 'profile' | 'subscription' | 'children' | 'notifications' | 'security' | 'danger';
+
 
 const AccountSettingsPage: React.FC = () => {
   const { profile, children, updateProfile, createChildAccount, updateChildAccount, deleteChildAccount, changePassword, deleteAccount, signOut } = useAuth();
@@ -279,8 +281,19 @@ const AccountSettingsPage: React.FC = () => {
       ),
     },
     {
+      id: 'subscription',
+      label: 'Subscription',
+      show: true,
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" />
+        </svg>
+      ),
+    },
+    {
       id: 'children',
       label: 'Children',
+
       show: profile?.role === 'parent',
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -533,8 +546,14 @@ const AccountSettingsPage: React.FC = () => {
               </div>
             )}
 
+            {/* Subscription Tab */}
+            {activeTab === 'subscription' && (
+              <SubscriptionManager />
+            )}
+
             {/* Children Tab (Parent only) */}
             {activeTab === 'children' && profile?.role === 'parent' && (
+
               <div className="space-y-6">
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                   <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">

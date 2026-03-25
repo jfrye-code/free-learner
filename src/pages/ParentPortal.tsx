@@ -3,6 +3,9 @@ import { useAppContext } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import LiveDashboard from '@/components/LiveDashboard';
+import WeeklyReports from '@/components/WeeklyReports';
+import GoalsManager from '@/components/GoalsManager';
+import FamilyOverview from '@/components/FamilyOverview';
 
 interface ActivityEntry {
   action_type: string;
@@ -50,7 +53,10 @@ const ParentPortal: React.FC = () => {
   const { studentProfile, setCurrentPage } = useAppContext();
   const { user, profile, children: childAccounts } = useAuth();
   const [activeChild, setActiveChild] = useState(0);
-  const [activeTab, setActiveTab] = useState<'overview' | 'live' | 'activity' | 'controls' | 'report'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'family' | 'live' | 'activity' | 'controls' | 'reports' | 'goals' | 'report'>('overview');
+
+
+
 
 
   // Activity feed state
@@ -357,25 +363,33 @@ const ParentPortal: React.FC = () => {
           </div>
           {/* Tabs */}
           <div className="flex gap-1 mt-3 -mb-px overflow-x-auto">
-            {[
+            {([
               { id: 'overview' as const, label: 'Overview', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+              ...(children.length >= 2 ? [{ id: 'family' as const, label: 'Family Overview', icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75M9 7a4 4 0 110-8 4 4 0 010 8' }] : []),
               { id: 'live' as const, label: 'Live Dashboard', icon: 'M22 12h-4l-3 9L9 3l-3 9H2' },
+              { id: 'reports' as const, label: 'Reports', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+              { id: 'goals' as const, label: 'Learning Goals', icon: 'M22 11.08V12a10 10 0 11-5.93-9.14M22 4L12 14.01l-3-3' },
               { id: 'activity' as const, label: 'Activity Feed', icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' },
               { id: 'controls' as const, label: 'Parental Controls', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
               { id: 'report' as const, label: 'Monthly Report', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-            ].map(tab => (
+            ] as const).map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-4 py-2 font-body text-sm font-semibold border-b-2 transition-all whitespace-nowrap ${
-                  activeTab === tab.id ? 'text-teal border-teal' : 'text-charcoal/40 border-transparent hover:text-charcoal/60'
+                  activeTab === tab.id
+                    ? tab.id === 'family' ? 'text-emerald-600 border-emerald-500' : 'text-teal border-teal'
+                    : 'text-charcoal/40 border-transparent hover:text-charcoal/60'
                 }`}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={tab.icon}/></svg>
                 {tab.label}
+                {tab.id === 'family' && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-bold rounded">NEW</span>}
               </button>
             ))}
           </div>
+
+
         </div>
       </div>
 
@@ -522,7 +536,17 @@ const ParentPortal: React.FC = () => {
           </div>
         )}
 
+        {/* FAMILY OVERVIEW TAB */}
+        {activeTab === 'family' && (
+          <FamilyOverview
+            children={children.map(c => ({ id: c.id, name: c.name, age: c.age }))}
+            parentId={user?.id || ''}
+          />
+        )}
+
+
         {/* LIVE DASHBOARD TAB */}
+
         {activeTab === 'live' && (
           <LiveDashboard
             childId={child.id}
@@ -533,8 +557,33 @@ const ParentPortal: React.FC = () => {
           />
         )}
 
+        {/* WEEKLY REPORTS TAB */}
+        {activeTab === 'reports' && (
+          <WeeklyReports
+            childId={child.id}
+            childName={child.name}
+            childAge={child.age}
+            gradeLevel={childAccounts[activeChild]?.grade_level || undefined}
+            interests={childAccounts[activeChild]?.interests || undefined}
+            parentId={user?.id || ''}
+          />
+        )}
+
+        {/* LEARNING GOALS TAB */}
+        {activeTab === 'goals' && (
+          <GoalsManager
+            childId={child.id}
+            childName={child.name}
+            parentId={user?.id || ''}
+            childAge={child.age}
+            gradeLevel={childAccounts[activeChild]?.grade_level || undefined}
+            interests={childAccounts[activeChild]?.interests || undefined}
+          />
+        )}
+
 
         {/* ACTIVITY FEED TAB */}
+
         {activeTab === 'activity' && (
           <div className="grid lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
@@ -616,9 +665,11 @@ const ParentPortal: React.FC = () => {
                   <button onClick={() => setActiveTab('controls')} className="w-full p-3 bg-orange/5 rounded-xl text-left hover:bg-orange/10 transition-all">
                     <p className="font-body text-sm font-semibold text-orange">Manage Controls</p>
                   </button>
-                  <button onClick={generateReport} className="w-full p-3 bg-purple-50 rounded-xl text-left hover:bg-purple-100 transition-all">
-                    <p className="font-body text-sm font-semibold text-purple-600">Generate Report</p>
+                  <button onClick={() => setActiveTab('reports')} className="w-full p-3 bg-purple-50 rounded-xl text-left hover:bg-purple-100 transition-all">
+                    <p className="font-body text-sm font-semibold text-purple-600">Weekly Reports</p>
+                    <p className="font-body text-[10px] text-purple-400 mt-0.5">AI-powered progress tracking</p>
                   </button>
+
                 </div>
               </div>
             </div>
