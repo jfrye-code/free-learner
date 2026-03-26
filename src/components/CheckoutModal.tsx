@@ -12,18 +12,20 @@ interface CheckoutModalProps {
 }
 
 // FamousPay card input component
-function FamousPayCardForm({ onSubmit, loading, totalCharge, billingCycle, onCancel }: {
+function FamousPayCardForm({ onSubmit, loading, totalCharge, billingCycle, onCancel, testMode }: {
   onSubmit: (cardData: { number: string; expiry: string; cvc: string; name: string }) => void;
   loading: boolean;
   totalCharge: number;
   billingCycle: string;
   onCancel: () => void;
+  testMode: boolean;
 }) {
   const [cardNumber, setCardNumber] = useState('');
   const [expiry, setExpiry] = useState('');
   const [cvc, setCvc] = useState('');
   const [cardName, setCardName] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showTestCards, setShowTestCards] = useState(false);
 
   const formatCardNumber = (value: string) => {
     const v = value.replace(/\D/g, '').slice(0, 16);
@@ -34,6 +36,15 @@ function FamousPayCardForm({ onSubmit, loading, totalCharge, billingCycle, onCan
     const v = value.replace(/\D/g, '').slice(0, 4);
     if (v.length >= 3) return v.slice(0, 2) + '/' + v.slice(2);
     return v;
+  };
+
+  const fillTestCard = (num: string) => {
+    setCardNumber(formatCardNumber(num));
+    setExpiry('12/28');
+    setCvc('123');
+    setCardName('Test User');
+    setShowTestCards(false);
+    setErrors({});
   };
 
   const validate = () => {
@@ -80,8 +91,70 @@ function FamousPayCardForm({ onSubmit, loading, totalCharge, billingCycle, onCan
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
         </div>
         <span className="font-heading font-bold text-sm text-indigo-800">FamousPay</span>
-        <span className="font-body text-[10px] text-indigo-500 ml-1">Secure Checkout</span>
+        {testMode ? (
+          <span className="font-body text-[10px] text-amber-600 ml-1 px-1.5 py-0.5 bg-amber-50 rounded border border-amber-200 font-bold">TEST MODE</span>
+        ) : (
+          <span className="font-body text-[10px] text-indigo-500 ml-1">Secure Checkout</span>
+        )}
       </div>
+
+      {/* Test Mode Banner */}
+      {testMode && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <div className="flex items-start gap-2">
+            <svg className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <div className="flex-1">
+              <p className="font-body text-xs font-bold text-amber-800">FamousPay Test Mode</p>
+              <p className="font-body text-[11px] text-amber-700 mt-0.5">No real charges will be made. Use test card numbers below.</p>
+              <button
+                type="button"
+                onClick={() => setShowTestCards(!showTestCards)}
+                className="font-body text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold mt-1 underline underline-offset-2"
+              >
+                {showTestCards ? 'Hide test cards' : 'Show test card numbers'}
+              </button>
+              {showTestCards && (
+                <div className="mt-2 space-y-1.5">
+                  <p className="font-body text-[10px] text-amber-700 font-semibold uppercase tracking-wide">Successful payments:</p>
+                  <button type="button" onClick={() => fillTestCard('4242424242424242')}
+                    className="w-full text-left px-2.5 py-1.5 bg-white rounded-lg border border-amber-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all flex items-center justify-between group">
+                    <div className="flex items-center gap-2">
+                      <svg width="20" height="13" viewBox="0 0 28 18"><rect width="28" height="18" rx="3" fill="#1A1F71"/><text x="4" y="12" fill="#F7B600" fontSize="8" fontWeight="bold">VISA</text></svg>
+                      <span className="font-mono text-[11px] text-charcoal">4242 4242 4242 4242</span>
+                    </div>
+                    <span className="font-body text-[10px] text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">Use this</span>
+                  </button>
+                  <button type="button" onClick={() => fillTestCard('5555555555554444')}
+                    className="w-full text-left px-2.5 py-1.5 bg-white rounded-lg border border-amber-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all flex items-center justify-between group">
+                    <div className="flex items-center gap-2">
+                      <svg width="20" height="13" viewBox="0 0 28 18"><rect width="28" height="18" rx="3" fill="#2B2B2B"/><circle cx="11" cy="9" r="5" fill="#EB001B" opacity="0.8"/><circle cx="17" cy="9" r="5" fill="#F79E1B" opacity="0.8"/></svg>
+                      <span className="font-mono text-[11px] text-charcoal">5555 5555 5555 4444</span>
+                    </div>
+                    <span className="font-body text-[10px] text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">Use this</span>
+                  </button>
+                  <p className="font-body text-[10px] text-amber-700 font-semibold uppercase tracking-wide mt-2">Declined payments:</p>
+                  <button type="button" onClick={() => fillTestCard('4000000000000002')}
+                    className="w-full text-left px-2.5 py-1.5 bg-white rounded-lg border border-amber-200 hover:border-red-300 hover:bg-red-50 transition-all flex items-center justify-between group">
+                    <div className="flex items-center gap-2">
+                      <svg width="20" height="13" viewBox="0 0 28 18"><rect width="28" height="18" rx="3" fill="#1A1F71"/><text x="4" y="12" fill="#F7B600" fontSize="8" fontWeight="bold">VISA</text></svg>
+                      <span className="font-mono text-[11px] text-charcoal">4000 0000 0000 0002</span>
+                    </div>
+                    <span className="font-body text-[10px] text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">Decline</span>
+                  </button>
+                  <button type="button" onClick={() => fillTestCard('4000000000009995')}
+                    className="w-full text-left px-2.5 py-1.5 bg-white rounded-lg border border-amber-200 hover:border-red-300 hover:bg-red-50 transition-all flex items-center justify-between group">
+                    <div className="flex items-center gap-2">
+                      <svg width="20" height="13" viewBox="0 0 28 18"><rect width="28" height="18" rx="3" fill="#1A1F71"/><text x="4" y="12" fill="#F7B600" fontSize="8" fontWeight="bold">VISA</text></svg>
+                      <span className="font-mono text-[11px] text-charcoal">4000 0000 0000 9995</span>
+                    </div>
+                    <span className="font-body text-[10px] text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">Insufficient funds</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Card Number */}
       <div>
@@ -91,7 +164,7 @@ function FamousPayCardForm({ onSubmit, loading, totalCharge, billingCycle, onCan
             type="text"
             value={cardNumber}
             onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-            placeholder="1234 5678 9012 3456"
+            placeholder={testMode ? "4242 4242 4242 4242" : "1234 5678 9012 3456"}
             className={`w-full px-4 py-3 pr-12 rounded-xl border font-body text-sm bg-gray-50 focus:outline-none focus:ring-2 transition-all ${
               errors.number ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-indigo-200 focus:border-indigo-400'
             }`}
@@ -106,6 +179,9 @@ function FamousPayCardForm({ onSubmit, loading, totalCharge, billingCycle, onCan
             )}
             {brand === 'amex' && (
               <svg width="28" height="18" viewBox="0 0 28 18"><rect width="28" height="18" rx="3" fill="#006FCF"/><text x="3" y="12" fill="white" fontSize="6" fontWeight="bold">AMEX</text></svg>
+            )}
+            {brand === 'discover' && (
+              <svg width="28" height="18" viewBox="0 0 28 18"><rect width="28" height="18" rx="3" fill="#FF6000"/><text x="2" y="12" fill="white" fontSize="5.5" fontWeight="bold">DISC</text></svg>
             )}
             {!brand && (
               <svg width="20" height="14" viewBox="0 0 24 16" fill="none" stroke="#D1D5DB" strokeWidth="1.5"><rect x="1" y="1" width="22" height="14" rx="2"/><line x1="1" y1="6" x2="23" y2="6"/></svg>
@@ -123,7 +199,7 @@ function FamousPayCardForm({ onSubmit, loading, totalCharge, billingCycle, onCan
             type="text"
             value={expiry}
             onChange={(e) => setExpiry(formatExpiry(e.target.value))}
-            placeholder="MM/YY"
+            placeholder={testMode ? "12/28" : "MM/YY"}
             className={`w-full px-4 py-3 rounded-xl border font-body text-sm bg-gray-50 focus:outline-none focus:ring-2 transition-all ${
               errors.expiry ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-indigo-200 focus:border-indigo-400'
             }`}
@@ -137,7 +213,7 @@ function FamousPayCardForm({ onSubmit, loading, totalCharge, billingCycle, onCan
             type="text"
             value={cvc}
             onChange={(e) => setCvc(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            placeholder="123"
+            placeholder={testMode ? "123" : "123"}
             className={`w-full px-4 py-3 rounded-xl border font-body text-sm bg-gray-50 focus:outline-none focus:ring-2 transition-all ${
               errors.cvc ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-indigo-200 focus:border-indigo-400'
             }`}
@@ -154,7 +230,7 @@ function FamousPayCardForm({ onSubmit, loading, totalCharge, billingCycle, onCan
           type="text"
           value={cardName}
           onChange={(e) => setCardName(e.target.value)}
-          placeholder="John Doe"
+          placeholder={testMode ? "Test User" : "John Doe"}
           className={`w-full px-4 py-3 rounded-xl border font-body text-sm bg-gray-50 focus:outline-none focus:ring-2 transition-all ${
             errors.name ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-indigo-200 focus:border-indigo-400'
           }`}
@@ -187,7 +263,11 @@ function FamousPayCardForm({ onSubmit, loading, totalCharge, billingCycle, onCan
         <button
           type="submit"
           disabled={loading}
-          className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-heading font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50"
+          className={`flex-1 py-3 text-white font-heading font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 ${
+            testMode
+              ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600'
+              : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'
+          }`}
         >
           {loading ? (
             <span className="flex items-center justify-center gap-2">
@@ -195,14 +275,21 @@ function FamousPayCardForm({ onSubmit, loading, totalCharge, billingCycle, onCan
               Processing...
             </span>
           ) : (
-            `Pay $${totalCharge.toFixed(2)} ${billingCycle === 'yearly' ? '/ year' : '/ month'}`
+            <>
+              {testMode && <span className="text-xs opacity-80">[TEST] </span>}
+              Pay ${totalCharge.toFixed(2)} {billingCycle === 'yearly' ? '/ year' : '/ month'}
+            </>
           )}
         </button>
       </div>
 
       <p className="font-body text-[11px] text-charcoal/40 text-center leading-relaxed">
-        By subscribing, you agree to our Terms of Service. You can cancel anytime from your account settings.
-        All paid plans include a 30-day money-back guarantee. Payments processed securely by FamousPay.
+        {testMode ? (
+          <>This is a test transaction. No real charges will be made. Payments simulated by FamousPay test environment.</>
+        ) : (
+          <>By subscribing, you agree to our Terms of Service. You can cancel anytime from your account settings.
+          All paid plans include a 30-day money-back guarantee. Payments processed securely by FamousPay.</>
+        )}
       </p>
     </form>
   );
@@ -213,6 +300,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, plan, bi
   const [errorMessage, setErrorMessage] = useState('');
   const [receipt, setReceipt] = useState<any>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [testMode, setTestMode] = useState(false);
 
   // Discount code state
   const [showDiscountInput, setShowDiscountInput] = useState(!!preAppliedDiscount);
@@ -222,6 +310,27 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, plan, bi
     code: string; discount_type: string; discount_value: number; free_months?: number; description?: string;
   } | null>(preAppliedDiscount || null);
   const [discountError, setDiscountError] = useState('');
+
+  // Fetch FamousPay config on mount
+  useEffect(() => {
+    if (isOpen) {
+      fetchConfig();
+    }
+  }, [isOpen]);
+
+  const fetchConfig = async () => {
+    try {
+      const { data } = await supabase.functions.invoke('checkout', {
+        body: { action: 'get-config' },
+      });
+      if (data?.test_mode) {
+        setTestMode(true);
+      }
+    } catch (err) {
+      // Default to showing as test mode if we can't reach the server
+      console.log('Could not fetch FamousPay config');
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -291,8 +400,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, plan, bi
           action: 'create-checkout',
           plan: plan.id,
           billing_cycle: billingCycle,
+          card_number: cardData.number,
           card_last4: cardData.number.slice(-4),
           card_brand: getCardBrand(cardData.number),
+          card_expiry: cardData.expiry,
+          card_cvc: cardData.cvc,
           cardholder_name: cardData.name,
           payment_processor: 'famouspay',
           discount_code: appliedDiscount?.code || null,
@@ -360,13 +472,26 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, plan, bi
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
       <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        {/* Test Mode Top Banner */}
+        {testMode && (
+          <div className="bg-gradient-to-r from-amber-400 to-orange-400 px-4 py-1.5 flex items-center justify-center gap-2 rounded-t-2xl">
+            <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span className="font-heading font-bold text-[11px] text-white tracking-wide uppercase">FamousPay Test Mode — No Real Charges</span>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <div>
             <h2 className="font-heading font-bold text-xl text-charcoal">
               {step === 'success' ? 'Payment Successful!' : step === 'processing' ? 'Processing...' : 'Complete Your Purchase'}
             </h2>
-            {step === 'payment' && <p className="font-body text-sm text-charcoal/50 mt-1">Subscribe to {plan.name} plan via FamousPay</p>}
+            {step === 'payment' && (
+              <p className="font-body text-sm text-charcoal/50 mt-1">
+                Subscribe to {plan.name} plan via FamousPay
+                {testMode && <span className="text-amber-600 font-semibold ml-1">(Test)</span>}
+              </p>
+            )}
           </div>
           <button onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -381,8 +506,15 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, plan, bi
                 <circle cx="12" cy="12" r="10" strokeOpacity="0.2" /><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
               </svg>
             </div>
-            <h3 className="font-heading font-bold text-lg text-charcoal mb-2">Processing your payment...</h3>
-            <p className="font-body text-sm text-charcoal/50">FamousPay is securely processing your transaction. Please don't close this window.</p>
+            <h3 className="font-heading font-bold text-lg text-charcoal mb-2">
+              {testMode ? 'Simulating payment...' : 'Processing your payment...'}
+            </h3>
+            <p className="font-body text-sm text-charcoal/50">
+              {testMode
+                ? 'FamousPay test environment is processing your simulated transaction.'
+                : 'FamousPay is securely processing your transaction. Please don\'t close this window.'
+              }
+            </p>
           </div>
         )}
 
@@ -394,10 +526,19 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, plan, bi
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
               </div>
               <h3 className="font-heading font-bold text-xl text-charcoal mb-2">Welcome to {plan.name}!</h3>
-              <p className="font-body text-sm text-charcoal/50">Your subscription is now active. Payment processed by FamousPay.</p>
+              <p className="font-body text-sm text-charcoal/50">
+                Your subscription is now active.
+                {testMode && <span className="text-amber-600 font-semibold"> (Test transaction — no charges made)</span>}
+              </p>
             </div>
             {receipt && (
               <div className="bg-cream rounded-xl p-5 mb-6 space-y-3">
+                {testMode && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 rounded-lg border border-amber-200 mb-3">
+                    <svg className="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    <span className="font-body text-[11px] font-bold text-amber-700">TEST MODE — This is a simulated receipt</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="font-body text-sm text-charcoal/60">Plan</span>
                   <span className="font-body text-sm font-semibold text-charcoal">{receipt.plan}</span>
@@ -422,13 +563,31 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, plan, bi
                   <span className="font-body text-sm text-charcoal/60">Charged today</span>
                   <span className="font-body text-sm font-bold text-teal">{receipt.total_charged}</span>
                 </div>
+                {receipt.card && (
+                  <div className="flex justify-between">
+                    <span className="font-body text-sm text-charcoal/60">Payment method</span>
+                    <span className="font-body text-sm text-charcoal">{receipt.card}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="font-body text-sm text-charcoal/60">Next billing</span>
                   <span className="font-body text-sm text-charcoal">{new Date(receipt.next_billing).toLocaleDateString()}</span>
                 </div>
+                {receipt.transaction_id && (
+                  <div className="flex justify-between">
+                    <span className="font-body text-sm text-charcoal/60">Transaction ID</span>
+                    <span className="font-mono text-[11px] text-charcoal/50">{receipt.transaction_id.slice(0, 20)}...</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="font-body text-sm text-charcoal/60">Processor</span>
-                  <span className="font-body text-sm text-indigo-600 font-semibold">FamousPay</span>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-4 bg-gradient-to-br from-indigo-600 to-purple-600 rounded flex items-center justify-center">
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg>
+                    </div>
+                    <span className="font-body text-sm text-indigo-600 font-semibold">FamousPay</span>
+                    {testMode && <span className="font-body text-[10px] text-amber-600 font-bold">(TEST)</span>}
+                  </div>
                 </div>
               </div>
             )}
@@ -447,6 +606,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, plan, bi
               </div>
               <h3 className="font-heading font-bold text-xl text-charcoal mb-2">Payment Failed</h3>
               <p className="font-body text-sm text-red-600">{errorMessage}</p>
+              {testMode && (
+                <p className="font-body text-xs text-amber-600 mt-2">
+                  This is a test mode decline. Try using card number 4242 4242 4242 4242 for a successful test payment.
+                </p>
+              )}
             </div>
             <button onClick={() => { setStep('payment'); setErrorMessage(''); }} className="w-full py-3 bg-teal hover:bg-teal-dark text-white font-body font-bold rounded-xl transition-all">
               Try Again
@@ -571,6 +735,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, plan, bi
                 totalCharge={totalCharge}
                 billingCycle={billingCycle}
                 onCancel={handleClose}
+                testMode={testMode}
               />
             )}
           </div>

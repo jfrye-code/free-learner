@@ -7,6 +7,7 @@ import AdminCampaigns from '@/components/AdminCampaigns';
 import AdminUsers from '@/components/AdminUsers';
 import AdminAnalytics from '@/components/AdminAnalytics';
 import AcademyManager from '@/components/AcademyManager';
+import AdminPayments from '@/components/AdminPayments';
 
 interface DiscountCode {
   id: string;
@@ -42,7 +43,8 @@ const AdminPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [codes, setCodes] = useState<DiscountCode[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'codes' | 'create' | 'referrals' | 'campaigns' | 'users' | 'analytics' | 'content'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'codes' | 'create' | 'referrals' | 'campaigns' | 'users' | 'analytics' | 'content' | 'payments'>('overview');
+
 
 
   const [message, setMessage] = useState('');

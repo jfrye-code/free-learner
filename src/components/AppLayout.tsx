@@ -13,6 +13,7 @@ import OnboardingPage from '@/pages/OnboardingPage';
 import ParentPortal from '@/pages/ParentPortal';
 import SchoolPortal from '@/pages/SchoolPortal';
 import AccountSettingsPage from '@/pages/AccountSettingsPage';
+import BillingPage from '@/pages/BillingPage';
 import PricingPage from '@/pages/PricingPage';
 import LearningProgressPage from '@/pages/LearningProgressPage';
 import ShopPage from '@/pages/ShopPage';
@@ -26,6 +27,7 @@ import PrivacyPage from '@/pages/PrivacyPage';
 import ReferralPage from '@/pages/ReferralPage';
 import ReferralLandingPage from '@/pages/ReferralLandingPage';
 import { supabase } from '@/lib/supabase';
+
 
 const AppLayout: React.FC = () => {
   const { currentPage, setCurrentPage, setShowLoginModal } = useAppContext();
@@ -139,6 +141,10 @@ const AppLayout: React.FC = () => {
   if (currentPage === 'settings') {
     return (<><LoginModal /><ProtectedRoute pageName="Account Settings"><Navbar /><AccountSettingsPage /><Footer /></ProtectedRoute></>);
   }
+  if (currentPage === 'billing') {
+    return (<><LoginModal /><ProtectedRoute pageName="Billing"><Navbar /><BillingPage /><Footer /></ProtectedRoute></>);
+  }
+
   if (currentPage === 'progress') {
     return (<><LoginModal /><ProtectedRoute pageName="Learning Progress"><Navbar /><LearningProgressPage /><Footer /></ProtectedRoute></>);
   }
