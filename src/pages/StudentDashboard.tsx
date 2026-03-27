@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useGamification } from '@/hooks/useGamification';
 import StreakCelebration from '@/components/StreakCelebration';
 import BadgeCelebration from '@/components/BadgeCelebration';
+import LessonViewer from '@/components/LessonViewer';
 
 const OWL_IMG = 'https://d64gsuwffb70l.cloudfront.net/69c189586866362256234858_1774292415727_993d7b38.jpg';
 
@@ -92,6 +93,8 @@ const StudentDashboard: React.FC = () => {
   const [moduleStartTime, setModuleStartTime] = useState<number | null>(null);
   const [coinAnimation, setCoinAnimation] = useState<{ amount: number; reason: string } | null>(null);
   const [floatingCoins, setFloatingCoins] = useState<{ id: number; amount: number; x: number; y: number }[]>([]);
+  const [activeModule, setActiveModule] = useState<LearningModule | null>(null);
+
 
   useEffect(() => { loadPaths(); }, [user?.id]);
 
@@ -227,12 +230,30 @@ const StudentDashboard: React.FC = () => {
 
   const startModule = (id: number) => {
     if (!currentPath) return;
+    const mod = currentPath.modules.find(m => m.id === id);
+    if (!mod || mod.locked || mod.completed) return;
     setModuleStartTime(Date.now());
+    setActiveModule(mod);
+    // Also unlock the module
     setCurrentPath(prev => {
       if (!prev) return prev;
       return { ...prev, modules: prev.modules.map(m => m.id === id ? { ...m, locked: false } : m) };
     });
   };
+
+  const handleLessonComplete = async () => {
+    if (!activeModule) return;
+    const moduleId = activeModule.id;
+    setActiveModule(null);
+    await completeModule(moduleId);
+  };
+
+  const handleLessonClose = () => {
+    // Close the lesson viewer without completing
+    setActiveModule(null);
+    // Keep moduleStartTime so they can resume
+  };
+
 
   const completeModule = async (id: number) => {
     if (!currentPath) return;
@@ -312,6 +333,16 @@ const StudentDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-cream flex">
+      {/* ─── LESSON VIEWER OVERLAY ─── */}
+      {activeModule && currentPath && (
+        <LessonViewer
+          module={activeModule}
+          topic={currentPath.topic}
+          onComplete={handleLessonComplete}
+          onClose={handleLessonClose}
+        />
+      )}
+
       {/* ─── CELEBRATION OVERLAYS ─── */}
       {pendingStreakMilestone && (
         <StreakCelebration milestone={pendingStreakMilestone} onClose={clearStreakMilestone} />
@@ -319,6 +350,7 @@ const StudentDashboard: React.FC = () => {
       {pendingBadgeEarned && !pendingStreakMilestone && (
         <BadgeCelebration event={pendingBadgeEarned} onClose={clearBadgeEarned} />
       )}
+
 
       {/* Coin animation overlay */}
       {coinAnimation && (
@@ -613,23 +645,16 @@ const StudentDashboard: React.FC = () => {
                           </div>
                           {!m.completed && !m.locked && (
                             <div className="flex flex-col gap-1 flex-shrink-0">
-                              {moduleStartTime && currentPath.modules.findIndex(mod => !mod.completed && !mod.locked) === i ? (
-                                <button
-                                  onClick={() => completeModule(m.id)}
-                                  className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-body font-bold text-xs rounded-lg transition-all"
-                                >
-                                  Complete
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => startModule(m.id)}
-                                  className="px-4 py-2 bg-teal hover:bg-teal-dark text-white font-body font-bold text-xs rounded-lg transition-all"
-                                >
-                                  Start
-                                </button>
-                              )}
+                              <button
+                                onClick={() => startModule(m.id)}
+                                className="px-4 py-2.5 bg-teal hover:bg-teal-dark text-white font-body font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow-sm hover:shadow-md"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                Start Lesson
+                              </button>
                             </div>
                           )}
+
                         </div>
                       </div>
                     ))}

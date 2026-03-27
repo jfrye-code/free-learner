@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+
+
 import AdminReferralLeaderboard from '@/components/AdminReferralLeaderboard';
 import AdminCampaigns from '@/components/AdminCampaigns';
 import AdminUsers from '@/components/AdminUsers';
@@ -116,11 +118,15 @@ const AdminPage: React.FC = () => {
 
   const createCode = async () => {
     if (!newCode.code.trim()) { showMessage('Code is required', 'error'); return; }
+    if (newCode.applicable_plans.length === 0) { showMessage('Select at least one plan', 'error'); return; }
     setCreating(true);
+    
     try {
-      // Use the dedicated create-discount-code function (always returns 200 with success/error in body)
-      const { data, error } = await supabase.functions.invoke('create-discount-code', {
+      // Use supabase.functions.invoke — same as all other working actions (check-admin, list, toggle, delete)
+      // The edge function always returns HTTP 200, so the supabase client won't throw
+      const { data, error } = await supabase.functions.invoke('manage-discount-codes', {
         body: {
+          action: 'create',
           code: newCode.code.toUpperCase().trim(),
           description: newCode.description,
           discount_type: newCode.discount_type,
@@ -131,26 +137,33 @@ const AdminPage: React.FC = () => {
           free_months: newCode.free_months,
         },
       });
-      
-      // The function always returns 200, so check the body for success/error
+
+      console.log('Create code response:', { data, error });
+
       if (error) {
-        console.error('Invoke error:', error);
-        throw new Error(error.message || 'Failed to invoke function');
+        // supabase client-level error (network issue, non-2xx, etc.)
+        console.error('Supabase invoke error:', error);
+        showMessage(error.message || 'Failed to create code', 'error');
+      } else if (data?.success === false) {
+        // Edge function returned 200 but with success: false
+        showMessage(data.error || 'Failed to create code', 'error');
+      } else {
+        // Success!
+        showMessage(`Code "${newCode.code.toUpperCase()}" created successfully!`, 'success');
+        setNewCode({ code: '', description: '', discount_type: 'percentage', discount_value: 0, max_uses: '', valid_until: '', applicable_plans: ['family', 'academy'], free_months: 0 });
+        loadCodes();
+        setActiveTab('codes');
       }
-      if (!data?.success) {
-        throw new Error(data?.error || 'Failed to create code');
-      }
-      
-      showMessage(`Code "${newCode.code.toUpperCase()}" created!`, 'success');
-      setNewCode({ code: '', description: '', discount_type: 'percentage', discount_value: 0, max_uses: '', valid_until: '', applicable_plans: ['family', 'academy'], free_months: 0 });
-      loadCodes();
-      setActiveTab('codes');
     } catch (err: any) {
       console.error('Create code error:', err);
       showMessage(err.message || 'Failed to create code', 'error');
     }
     setCreating(false);
   };
+
+
+
+
 
 
 
