@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 
-export type PageType = 'home' | 'student' | 'chat' | 'parent' | 'safety' | 'onboarding' | 'pricing' | 'school' | 'settings' | 'billing' | 'progress' | 'shop' | 'leaderboard' | 'explore' | 'compliance' | 'portfolio' | 'admin' | 'terms' | 'privacy' | 'referral';
+export type PageType = 'home' | 'student' | 'chat' | 'parent' | 'safety' | 'onboarding' | 'pricing' | 'school' | 'settings' | 'billing' | 'progress' | 'shop' | 'leaderboard' | 'explore' | 'compliance' | 'portfolio' | 'admin' | 'terms' | 'privacy' | 'referral' | 'registration';
+
 
 
 
@@ -116,7 +117,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const toggleSidebar = () => setSidebarOpen(prev => !prev);
 
   // Protected pages that require authentication
-  const protectedPages: PageType[] = ['student', 'chat', 'parent', 'school', 'settings', 'billing', 'progress', 'shop', 'leaderboard', 'compliance', 'portfolio', 'admin', 'referral'];
+  const protectedPages: PageType[] = ['student', 'chat', 'parent', 'school', 'settings', 'billing', 'progress', 'shop', 'leaderboard', 'compliance', 'portfolio', 'admin', 'referral', 'registration'];
+
 
 
 

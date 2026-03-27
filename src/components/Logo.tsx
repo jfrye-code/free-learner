@@ -28,11 +28,16 @@ const Logo: React.FC<LogoProps> = ({ size = 'md', showText = true }) => {
         <rect x="21" y="43" width="6" height="1.5" rx="0.75" fill="#F4A261" />
       </svg>
       {showText && (
-        <span className={`font-heading font-bold ${textSizes[size]} text-charcoal`}>
-          Free<span className="text-teal">Learner</span>
-        </span>
-
+        <div className="flex items-center gap-1.5">
+          <span className={`font-heading font-bold ${textSizes[size]} text-charcoal`}>
+            Free<span className="text-teal">Learner</span>
+          </span>
+          <span className="px-1.5 py-0.5 bg-gradient-to-r from-orange to-orange-dark text-white text-[9px] font-bold font-body uppercase tracking-wider rounded-md leading-none mt-0.5">
+            Beta
+          </span>
+        </div>
       )}
+
     </div>
   );
 };

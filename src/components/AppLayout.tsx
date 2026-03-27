@@ -26,7 +26,9 @@ import TermsPage from '@/pages/TermsPage';
 import PrivacyPage from '@/pages/PrivacyPage';
 import ReferralPage from '@/pages/ReferralPage';
 import ReferralLandingPage from '@/pages/ReferralLandingPage';
+import RegistrationPage from '@/pages/RegistrationPage';
 import { supabase } from '@/lib/supabase';
+
 
 
 const AppLayout: React.FC = () => {
@@ -169,6 +171,11 @@ const AppLayout: React.FC = () => {
   if (currentPage === 'referral') {
     return (<><LoginModal /><ProtectedRoute pageName="Referral"><Navbar /><ReferralPage /><Footer /></ProtectedRoute></>);
   }
+  if (currentPage === 'registration') {
+    return (<><LoginModal /><ProtectedRoute pageName="Registration"><Navbar /><RegistrationPage /><Footer /></ProtectedRoute></>);
+  }
+
+
   if (currentPage === 'terms') {
     return (<><LoginModal /><Navbar /><TermsPage /><Footer /></>);
   }

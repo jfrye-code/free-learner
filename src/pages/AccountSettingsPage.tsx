@@ -2,8 +2,141 @@ import React, { useState, useEffect } from 'react';
 import { useAuth, NotificationPreferences, ChildAccount } from '@/contexts/AuthContext';
 import { useAppContext } from '@/contexts/AppContext';
 import SubscriptionManager from '@/components/SubscriptionManager';
+import GuardianManager from '@/components/GuardianManager';
 
-type SettingsTab = 'profile' | 'subscription' | 'children' | 'notifications' | 'security' | 'danger';
+type SettingsTab = 'profile' | 'subscription' | 'children' | 'guardians' | 'notifications' | 'security' | 'danger';
+
+
+/* ─── Guardians Tab Sub-Component ─── */
+const GuardiansTabContent: React.FC<{ children: ChildAccount[] }> = ({ children: childAccounts }) => {
+  const [selectedChildId, setSelectedChildId] = useState<string>(childAccounts[0]?.id || '');
+
+  // Keep selection in sync if children list changes
+  useEffect(() => {
+    if (childAccounts.length > 0 && !childAccounts.find(c => c.id === selectedChildId)) {
+      setSelectedChildId(childAccounts[0].id);
+    }
+  }, [childAccounts, selectedChildId]);
+
+  const selectedChild = childAccounts.find(c => c.id === selectedChildId);
+
+  if (childAccounts.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-100">
+            <h2 className="font-heading font-bold text-lg text-charcoal">Guardians & Educators</h2>
+            <p className="font-body text-sm text-charcoal/50 mt-1">Manage who has access to your children's learning data</p>
+          </div>
+          <div className="p-6">
+            <div className="text-center py-12">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-50 flex items-center justify-center">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <h3 className="font-heading font-bold text-charcoal mb-1">Add a child first</h3>
+              <p className="font-body text-sm text-charcoal/40 max-w-sm mx-auto">
+                You need to add at least one child account before you can manage guardians and educators. 
+                Go to the <span className="font-semibold text-teal">Children</span> tab to add your first child.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Child Selector - shown when multiple children exist */}
+      {childAccounts.length > 1 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-6 py-4 flex items-center gap-4">
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+              </svg>
+              <span className="font-body font-semibold text-sm text-charcoal">Managing guardians for:</span>
+            </div>
+            <div className="relative flex-1 max-w-xs">
+              <select
+                value={selectedChildId}
+                onChange={(e) => setSelectedChildId(e.target.value)}
+                className="w-full appearance-none px-4 py-2.5 pr-10 bg-indigo-50 border border-indigo-200 rounded-xl font-body text-sm font-semibold text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all cursor-pointer"
+              >
+                {childAccounts.map((child) => (
+                  <option key={child.id} value={child.id}>
+                    {child.child_name}{child.age ? ` (Age ${child.age})` : ''}{child.grade_level ? ` - ${child.grade_level}` : ''}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick child navigation pills */}
+          <div className="px-6 pb-4 flex gap-2 flex-wrap">
+            {childAccounts.map((child) => (
+              <button
+                key={child.id}
+                onClick={() => setSelectedChildId(child.id)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-body font-semibold transition-all ${
+                  selectedChildId === child.id
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-gray-100 text-charcoal/50 hover:bg-indigo-50 hover:text-indigo-600'
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                  selectedChildId === child.id
+                    ? 'bg-white/20 text-white'
+                    : 'bg-gray-200 text-charcoal/40'
+                }`}>
+                  {child.child_name.charAt(0).toUpperCase()}
+                </div>
+                {child.child_name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Single child header when only one child */}
+      {childAccounts.length === 1 && selectedChild && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-6 py-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-heading font-bold text-sm shadow-sm flex-shrink-0">
+              {selectedChild.child_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+            </div>
+            <div>
+              <p className="font-body font-bold text-sm text-charcoal">
+                Managing guardians for {selectedChild.child_name}
+              </p>
+              <p className="font-body text-xs text-charcoal/40">
+                {selectedChild.age ? `Age ${selectedChild.age}` : ''}{selectedChild.grade_level ? ` · ${selectedChild.grade_level}` : ''}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Guardian Manager for selected child */}
+      {selectedChild && (
+        <GuardianManager
+          key={selectedChild.id}
+          studentId={selectedChild.id}
+          studentName={selectedChild.child_name}
+        />
+      )}
+    </div>
+  );
+};
+
 
 
 const AccountSettingsPage: React.FC = () => {
@@ -293,7 +426,6 @@ const AccountSettingsPage: React.FC = () => {
     {
       id: 'children',
       label: 'Children',
-
       show: profile?.role === 'parent',
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -302,6 +434,19 @@ const AccountSettingsPage: React.FC = () => {
       ),
     },
     {
+      id: 'guardians',
+      label: 'Guardians',
+      show: profile?.role === 'parent',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      ),
+    },
+    {
+
+
       id: 'notifications',
       label: 'Notifications',
       show: true,
@@ -776,7 +921,12 @@ const AccountSettingsPage: React.FC = () => {
               </div>
             )}
 
-            {/* Notifications Tab */}
+            {/* Guardians Tab (Parent only) */}
+            {activeTab === 'guardians' && profile?.role === 'parent' && (
+              <GuardiansTabContent children={children} />
+            )}
+
+
             {activeTab === 'notifications' && (
               <div className="space-y-6">
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
