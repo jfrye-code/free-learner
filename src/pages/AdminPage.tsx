@@ -118,7 +118,7 @@ const AdminPage: React.FC = () => {
     if (!newCode.code.trim()) { showMessage('Code is required', 'error'); return; }
     setCreating(true);
     try {
-      // Use the dedicated create-discount-code function (separate from manage-discount-codes)
+      // Use the dedicated create-discount-code function (always returns 200 with success/error in body)
       const { data, error } = await supabase.functions.invoke('create-discount-code', {
         body: {
           code: newCode.code.toUpperCase().trim(),
@@ -131,17 +131,27 @@ const AdminPage: React.FC = () => {
           free_months: newCode.free_months,
         },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      
+      // The function always returns 200, so check the body for success/error
+      if (error) {
+        console.error('Invoke error:', error);
+        throw new Error(error.message || 'Failed to invoke function');
+      }
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to create code');
+      }
+      
       showMessage(`Code "${newCode.code.toUpperCase()}" created!`, 'success');
       setNewCode({ code: '', description: '', discount_type: 'percentage', discount_value: 0, max_uses: '', valid_until: '', applicable_plans: ['family', 'academy'], free_months: 0 });
       loadCodes();
       setActiveTab('codes');
     } catch (err: any) {
+      console.error('Create code error:', err);
       showMessage(err.message || 'Failed to create code', 'error');
     }
     setCreating(false);
   };
+
 
 
   const toggleCode = async (id: string, active: boolean) => {
