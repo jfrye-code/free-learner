@@ -3,8 +3,11 @@ import { useAppContext } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useGamification } from '@/hooks/useGamification';
+import { useProgression, LEVEL_TITLES, getXPForNextLevel, SKILL_LABELS, SKILL_COLORS, SKILL_ICONS } from '@/hooks/useProgression';
 import StreakCelebration from '@/components/StreakCelebration';
 import BadgeCelebration from '@/components/BadgeCelebration';
+import ProgressionFeedback from '@/components/ProgressionFeedback';
+import SkillRadar from '@/components/SkillRadar';
 import LessonViewer from '@/components/LessonViewer';
 
 const OWL_IMG = 'https://d64gsuwffb70l.cloudfront.net/69c189586866362256234858_1774292415727_993d7b38.jpg';
@@ -84,6 +87,12 @@ const StudentDashboard: React.FC = () => {
     clearStreakMilestone, clearBadgeEarned,
   } = useGamification();
 
+  const {
+    progression, lastXPEvent, clearLastXPEvent,
+    onLessonCompleted: awardLessonXP,
+    onBranchExplored: awardBranchXP,
+  } = useProgression();
+
   const [interest, setInterest] = useState('');
   const [currentPath, setCurrentPath] = useState<LearningPath | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -94,6 +103,7 @@ const StudentDashboard: React.FC = () => {
   const [coinAnimation, setCoinAnimation] = useState<{ amount: number; reason: string } | null>(null);
   const [floatingCoins, setFloatingCoins] = useState<{ id: number; amount: number; x: number; y: number }[]>([]);
   const [activeModule, setActiveModule] = useState<LearningModule | null>(null);
+  const [lessonBranchCount, setLessonBranchCount] = useState(0);
 
 
   useEffect(() => { loadPaths(); }, [user?.id]);
@@ -156,7 +166,7 @@ const StudentDashboard: React.FC = () => {
       const { data, error } = await supabase.functions.invoke('generate-learning-path', {
         body: {
           topic: t,
-          studentName: studentProfile.name,
+          studentName: studentProfile.name, // Already first-name-only from AppContext
           age: studentProfile.age,
           gradeLevel: studentProfile.gradeLevel || String(Math.max(1, studentProfile.age - 5)),
           interests: studentProfile.interests,
@@ -166,6 +176,7 @@ const StudentDashboard: React.FC = () => {
           handsOnPreference: studentProfile.handsOnPreference,
         },
       });
+
 
       if (error) throw error;
 
@@ -216,13 +227,14 @@ const StudentDashboard: React.FC = () => {
     } catch (err) {
       console.error('Failed to generate path:', err);
       const fallbackModules: LearningModule[] = [
-        { id: 1, title: `Discovering ${t}`, subject_display: 'Exploration', subject_color: 'bg-teal-100 text-teal-700', subject_tags: ['Science'], time_estimate_minutes: 15, description: `Let's dive into the fascinating world of ${t}!`, activity_type: 'explore', completed: false, locked: false },
-        { id: 2, title: `The Science of ${t}`, subject_display: 'Science', subject_color: 'bg-blue-100 text-blue-700', subject_tags: ['Science', 'Math'], time_estimate_minutes: 20, description: `Discover the amazing science behind ${t}.`, activity_type: 'experiment', completed: false, locked: false },
-        { id: 3, title: `${t} Through History`, subject_display: 'History', subject_color: 'bg-amber-100 text-amber-700', subject_tags: ['History'], time_estimate_minutes: 15, description: `Travel back in time to see how ${t} shaped our world.`, activity_type: 'explore', completed: false, locked: true },
-        { id: 4, title: `Create Your ${t} Project`, subject_display: 'Creative Design', subject_color: 'bg-pink-100 text-pink-700', subject_tags: ['Arts', 'Math'], time_estimate_minutes: 20, description: `Put it all together and create something amazing!`, activity_type: 'create', completed: false, locked: true },
+        { id: 1, title: `The Untold Origin Story of ${t}`, subject_display: 'History & Culture', subject_color: 'bg-amber-100 text-amber-700', subject_tags: ['History', 'Science'], time_estimate_minutes: 15, description: `${studentProfile.name}, ${t} has a wilder backstory than you'd ever guess. Let's go back to where it all started.`, activity_type: 'explore', completed: false, locked: false },
+        { id: 2, title: `The Hidden Forces Behind ${t}`, subject_display: 'Hidden Physics', subject_color: 'bg-blue-100 text-blue-700', subject_tags: ['Science', 'Math'], time_estimate_minutes: 20, description: `There's invisible science happening every time you interact with ${t}. Once you see it, you can't unsee it.`, activity_type: 'experiment', completed: false, locked: false },
+        { id: 3, title: `The Numbers Nobody Notices`, subject_display: 'Real-World Math', subject_color: 'bg-purple-100 text-purple-700', subject_tags: ['Math', 'Science'], time_estimate_minutes: 15, description: `Math is hiding everywhere in ${t} — and the people who notice it have a serious advantage.`, activity_type: 'explore', completed: false, locked: true },
+        { id: 4, title: `Build Something Real`, subject_display: 'Design Lab', subject_color: 'bg-pink-100 text-pink-700', subject_tags: ['Engineering', 'Arts'], time_estimate_minutes: 20, description: `Time to take everything you've discovered and make something with it. This is where curiosity turns into creation.`, activity_type: 'create', completed: false, locked: true },
       ];
       setCurrentPath({ topic: t, modules: fallbackModules, tomorrow_teaser: `Tomorrow we'll uncover hidden patterns in ${t}...`, path_summary: `Exploring ${t} today!` });
       setInterest('');
+
     } finally {
       setIsGenerating(false);
     }
@@ -241,12 +253,20 @@ const StudentDashboard: React.FC = () => {
     });
   };
 
-  const handleLessonComplete = async () => {
+  const handleLessonComplete = async (branchesExplored: number = 0) => {
     if (!activeModule) return;
     const moduleId = activeModule.id;
     setActiveModule(null);
+    setLessonBranchCount(branchesExplored);
+    
+    // Award XP via progression system
+    if (currentPath) {
+      await awardLessonXP(currentPath.topic, branchesExplored);
+    }
+    
     await completeModule(moduleId);
   };
+
 
   const handleLessonClose = () => {
     // Close the lesson viewer without completing
@@ -351,6 +371,15 @@ const StudentDashboard: React.FC = () => {
         <BadgeCelebration event={pendingBadgeEarned} onClose={clearBadgeEarned} />
       )}
 
+      {/* ─── XP PROGRESSION FEEDBACK ─── */}
+      {lastXPEvent && !pendingStreakMilestone && !pendingBadgeEarned && (
+        <ProgressionFeedback
+          event={lastXPEvent}
+          currentLevel={progression.current_level}
+          onDismiss={clearLastXPEvent}
+        />
+      )}
+
 
       {/* Coin animation overlay */}
       {coinAnimation && (
@@ -386,7 +415,7 @@ const StudentDashboard: React.FC = () => {
             <img src={OWL_IMG} alt="Mentor" className="w-10 h-10 rounded-full object-cover" />
             <div>
               <p className="font-heading font-bold text-sm text-charcoal">FreeLearner</p>
-              <p className="font-body text-xs text-charcoal/40">Your buddy</p>
+              <p className="font-body text-xs text-charcoal/40">Your learning mentor</p>
 
             </div>
           </div>
@@ -498,6 +527,13 @@ const StudentDashboard: React.FC = () => {
                   <span className="font-heading font-bold text-xs text-orange-700">{currency.current_streak}</span>
                 </div>
               )}
+              {/* XP Level badge in header */}
+              <button onClick={() => setActiveTab('achievements')} className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-full transition-all">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="#6366F1"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span className="font-heading font-bold text-xs text-indigo-700">Lv.{progression.current_level}</span>
+                <span className="font-body text-[10px] text-indigo-400">{progression.total_xp} XP</span>
+              </button>
+
               <div className="relative w-10 h-10">
                 <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
                   <circle cx="18" cy="18" r="15" fill="none" stroke="#E5E7EB" strokeWidth="3" />

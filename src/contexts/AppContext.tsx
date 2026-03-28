@@ -101,13 +101,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsLoggedIn(true);
       setUserRole(profile.role as UserRole);
 
-      // Update student profile name from auth profile
+      // Update student profile name from auth profile — use FIRST NAME only
       if (profile.full_name) {
+        const firstName = profile.full_name.split(' ')[0] || profile.full_name;
         setStudentProfile(prev => ({
           ...prev,
-          name: profile.full_name || prev.name,
+          name: firstName,
         }));
       }
+
     } else {
       setIsLoggedIn(false);
       setUserRole('guest');

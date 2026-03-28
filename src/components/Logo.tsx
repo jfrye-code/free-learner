@@ -6,38 +6,33 @@ interface LogoProps {
 }
 
 const Logo: React.FC<LogoProps> = ({ size = 'md', showText = true }) => {
-  const sizes = { sm: 28, md: 36, lg: 48 };
+  const sizes = { sm: 26, md: 32, lg: 44 };
   const s = sizes[size];
-  const textSizes = { sm: 'text-lg', md: 'text-xl', lg: 'text-3xl' };
+  const textSizes = { sm: 'text-base', md: 'text-lg', lg: 'text-2xl' };
 
   return (
-    <div className="flex items-center gap-2">
-      <svg width={s} height={s} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-        {/* Brain shape */}
-        <path d="M24 6C16 6 10 12 10 20C10 26 13 30 16 33C18 35 19 38 19 40H29C29 38 30 35 32 33C35 30 38 26 38 20C38 12 32 6 24 6Z" fill="#0D7377" />
-        {/* Brain detail lines */}
-        <path d="M24 10V30" stroke="#FFF8F0" strokeWidth="1.5" strokeLinecap="round" />
-        <path d="M17 16C20 16 22 18 24 18C26 18 28 16 31 16" stroke="#FFF8F0" strokeWidth="1.5" strokeLinecap="round" />
-        <path d="M16 23C19 23 21 25 24 25C27 25 29 23 32 23" stroke="#FFF8F0" strokeWidth="1.5" strokeLinecap="round" />
-        {/* Shooting star / spark */}
-        <path d="M34 8L38 4" stroke="#F4A261" strokeWidth="2.5" strokeLinecap="round" />
-        <path d="M37 10L40 8" stroke="#F4A261" strokeWidth="2" strokeLinecap="round" />
-        <path d="M36 6L39 5" stroke="#F4A261" strokeWidth="2" strokeLinecap="round" />
-        {/* Lightbulb base */}
-        <rect x="20" y="40" width="8" height="3" rx="1" fill="#F4A261" />
-        <rect x="21" y="43" width="6" height="1.5" rx="0.75" fill="#F4A261" />
+    <div className="flex items-center gap-2.5">
+      <svg width={s} height={s} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* Shield / book shape */}
+        <rect x="4" y="4" width="32" height="32" rx="8" fill="#2B7A78" />
+        {/* Abstract open book / learning path */}
+        <path d="M12 14C14 12 17 11 20 13C23 11 26 12 28 14" stroke="white" strokeWidth="2" strokeLinecap="round" />
+        <path d="M20 13V27" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="2 2" />
+        <path d="M12 20C14 18 17 17 20 19C23 17 26 18 28 20" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
+        {/* Spark accent */}
+        <circle cx="30" cy="10" r="3" fill="#E07A3A" />
+        <path d="M30 7V13M27 10H33" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
       </svg>
       {showText && (
-        <div className="flex items-center gap-1.5">
-          <span className={`font-heading font-bold ${textSizes[size]} text-charcoal`}>
+        <div className="flex items-baseline gap-1.5">
+          <span className={`font-heading font-bold ${textSizes[size]} text-charcoal tracking-tight`}>
             Free<span className="text-teal">Learner</span>
           </span>
-          <span className="px-1.5 py-0.5 bg-gradient-to-r from-orange to-orange-dark text-white text-[9px] font-bold font-body uppercase tracking-wider rounded-md leading-none mt-0.5">
+          <span className="px-1.5 py-0.5 bg-teal/10 text-teal text-[9px] font-semibold font-body uppercase tracking-wider rounded leading-none">
             Beta
           </span>
         </div>
       )}
-
     </div>
   );
 };
