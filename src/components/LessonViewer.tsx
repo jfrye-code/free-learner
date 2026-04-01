@@ -4,6 +4,7 @@ import { useAppContext } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProgression, XP_REWARDS, SKILL_COLORS, SKILL_LABELS, type SkillDomains } from '@/hooks/useProgression';
 
+
 interface LessonModule {
   id: number;
   title: string;
@@ -33,6 +34,13 @@ interface LessonSegment {
   branchLabel?: string;
 }
 
+interface LessonPlanMeta {
+  canonical_topic?: string;
+  structure_style?: string;
+  intent?: string;
+  focus_angle?: string;
+}
+
 interface LessonViewerProps {
   module: LessonModule;
   topic: string;
@@ -43,8 +51,22 @@ interface LessonViewerProps {
 
 const OWL_IMG = 'https://d64gsuwffb70l.cloudfront.net/69c189586866362256234858_1774292415727_993d7b38.jpg';
 
-// ─── MARKDOWN PARSER ───
-// Splits AI response into sections based on ## headers
+// ─── STRUCTURE STYLE LABELS ───
+const structureLabels: Record<string, { label: string; icon: string }> = {
+  mystery: { label: 'Investigation', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
+  origin_story: { label: 'Origin Story', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+  versus: { label: 'Face-Off', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
+  countdown: { label: 'Countdown', icon: 'M19 14l-7 7m0 0l-7-7m7 7V3' },
+  day_in_the_life: { label: 'Day in the Life', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+  what_if: { label: 'What If?', icon: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+  behind_the_scenes: { label: 'Behind the Scenes', icon: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z' },
+  timeline_journey: { label: 'Time Travel', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+  myth_busting: { label: 'Myth Busted', icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636' },
+  maker_lab: { label: 'Maker Lab', icon: 'M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z' },
+};
+
+// ─── ENHANCED MARKDOWN PARSER ───
+// Handles varied lesson structures from the two-phase generation system
 
 function parseMarkdownToSections(rawText: string): LessonSection[] {
   const sections: LessonSection[] = [];
@@ -52,15 +74,14 @@ function parseMarkdownToSections(rawText: string): LessonSection[] {
   // Split by ## headers
   const headerRegex = /^##\s+(.+)$/gm;
   const parts: { title: string; body: string }[] = [];
-  let lastIndex = 0;
-  let match;
   const matches: { title: string; index: number }[] = [];
   
+  let match;
   while ((match = headerRegex.exec(rawText)) !== null) {
     matches.push({ title: match[1].replace(/\*\*/g, '').trim(), index: match.index });
   }
   
-  // If no headers found, treat as single block
+  // If no headers found, treat as flowing text
   if (matches.length === 0) {
     const paragraphs = rawText.split(/\n\n+/).filter(p => p.trim());
     if (paragraphs.length >= 3) {
@@ -89,8 +110,9 @@ function parseMarkdownToSections(rawText: string): LessonSection[] {
     parts.push({ title: matches[i].title, body });
   }
   
-  // Classify each section
-  for (let i = 0; i < parts.length; i++) {
+  // Classify each section with enhanced detection
+  const totalParts = parts.length;
+  for (let i = 0; i < totalParts; i++) {
     const { title, body } = parts[i];
     const lower = title.toLowerCase();
     
@@ -111,10 +133,11 @@ function parseMarkdownToSections(rawText: string): LessonSection[] {
     
     const content = contentLines.join('\n');
     
-    // Detect branches section
+    // ─── BRANCH DETECTION (enhanced for varied formats) ───
     if (lower.includes('direction') || lower.includes('path') || lower.includes('calls to you') || 
-        lower.includes('choose') || lower.includes('which') || lower.includes('next step') ||
-        lower.includes('where do') || lower.includes('branch')) {
+        lower.includes('choose') || lower.includes('next step') || lower.includes('where to next') ||
+        lower.includes('where do') || lower.includes('branch') || lower.includes('fork in the road') ||
+        lower.includes('your call') || lower.includes('pick your') || lower.includes('which way')) {
       const branchOptions = extractBranches(items);
       if (branchOptions.length > 0) {
         sections.push({ type: 'branches', title, content, items, branchOptions });
@@ -122,33 +145,91 @@ function parseMarkdownToSections(rawText: string): LessonSection[] {
       }
     }
     
-    // Classify by content/position
+    // ─── ENHANCED SECTION CLASSIFICATION ───
     let type: LessonSection['type'] = 'exploration';
     
+    // First section is always the hook
     if (i === 0 || (i === 1 && !parts[0].title)) {
       type = 'hook';
-    } else if (lower.includes('mind') || lower.includes('blow') || lower.includes('fact') || 
-               lower.includes('rewire') || lower.includes('believe') || lower.includes('wild') ||
-               lower.includes('bet you') || lower.includes('change how')) {
+    }
+    // Last section (before branches) is often the open loop or reflection
+    else if (i === totalParts - 1 && !lower.includes('direction') && !lower.includes('next')) {
+      // Check if it's more of a reflection or open loop
+      if (lower.includes('but') || lower.includes('wait') || lower.includes('one more') || 
+          lower.includes('haven\'t') || lower.includes('secret') || lower.includes('nobody') ||
+          lower.includes('what if') || lower.includes('imagine') || lower.includes('cliffhanger')) {
+        type = 'openloop';
+      } else {
+        type = 'reflection';
+      }
+    }
+    // Second-to-last is often reflection if last is open loop
+    else if (i === totalParts - 2) {
+      if (lower.includes('thinking like') || lower.includes('already') || lower.includes('becoming') ||
+          lower.includes('you just') || lower.includes('who you') || lower.includes('reflect') ||
+          lower.includes('engineer') || lower.includes('scientist') || lower.includes('creator') ||
+          lower.includes('innovator') || lower.includes('thinker') || lower.includes('your superpower') ||
+          lower.includes('you\'re not just') || lower.includes('that makes you')) {
+        type = 'reflection';
+      }
+    }
+    // Facts / mind-blowing sections
+    else if (lower.includes('mind') || lower.includes('blow') || lower.includes('fact') || 
+             lower.includes('rewire') || lower.includes('believe') || lower.includes('wild') ||
+             lower.includes('bet you') || lower.includes('change how') || lower.includes('did you know') ||
+             lower.includes('truth') || lower.includes('surprise') || lower.includes('shocking') ||
+             lower.includes('myth') || lower.includes('wrong about') || lower.includes('actually') ||
+             lower.includes('think again') || lower.includes('plot twist')) {
       type = 'facts';
-    } else if (lower.includes('try') || lower.includes('build') || lower.includes('your turn') || 
-               lower.includes('challenge') || lower.includes('hands') || lower.includes('create') ||
-               lower.includes('design') || lower.includes('experiment') || lower.includes('activity') ||
-               lower.includes('right now')) {
+    }
+    // Challenge / hands-on sections
+    else if (lower.includes('try') || lower.includes('build') || lower.includes('your turn') || 
+             lower.includes('challenge') || lower.includes('hands') || lower.includes('create') ||
+             lower.includes('design') || lower.includes('experiment') || lower.includes('activity') ||
+             lower.includes('right now') || lower.includes('make your') || lower.includes('grab') ||
+             lower.includes('step 1') || lower.includes('materials') || lower.includes('diy') ||
+             lower.includes('project') || lower.includes('workshop') || lower.includes('lab time') ||
+             lower.includes('mission') || lower.includes('your move')) {
       type = 'challenge';
-    } else if (lower.includes('thinking like') || lower.includes('already') || lower.includes('becoming') ||
-               lower.includes('you just') || lower.includes('who you') || lower.includes('reflect')) {
+    }
+    // Reflection / identity sections
+    else if (lower.includes('thinking like') || lower.includes('already') || lower.includes('becoming') ||
+             lower.includes('you just') || lower.includes('who you') || lower.includes('reflect') ||
+             lower.includes('you\'re not') || lower.includes('that\'s what') || lower.includes('real talk')) {
       type = 'reflection';
-    } else if (lower.includes('nobody') || lower.includes('next') || lower.includes('tomorrow') || 
-               lower.includes('coming up') || lower.includes('wait until') || lower.includes('rabbit hole') ||
-               lower.includes('what\'s ahead') || lower.includes('haven\'t') || lower.includes('almost no')) {
+    }
+    // Open loop / teaser sections
+    else if (lower.includes('nobody') || lower.includes('tomorrow') || 
+             lower.includes('coming up') || lower.includes('wait until') || lower.includes('rabbit hole') ||
+             lower.includes('what\'s ahead') || lower.includes('haven\'t') || lower.includes('almost no') ||
+             lower.includes('one more thing') || lower.includes('but here\'s') || lower.includes('clue') ||
+             lower.includes('unfinished') || lower.includes('to be continued') || lower.includes('teaser')) {
       type = 'openloop';
-    } else if (lower.includes('hidden') || lower.includes('deeper') || lower.includes('beneath') ||
-               lower.includes('secret') || lower.includes('invisible') || lower.includes('counter') ||
-               lower.includes('never noticed') || lower.includes('under the')) {
+    }
+    // Deep dive sections
+    else if (lower.includes('hidden') || lower.includes('deeper') || lower.includes('beneath') ||
+             lower.includes('secret') || lower.includes('invisible') || lower.includes('counter') ||
+             lower.includes('never noticed') || lower.includes('under the') || lower.includes('inside') ||
+             lower.includes('really') || lower.includes('actually work') || lower.includes('how it') ||
+             lower.includes('mechanism') || lower.includes('why does') || lower.includes('the science') ||
+             lower.includes('numbers') || lower.includes('calculate') || lower.includes('measure')) {
       type = 'deepdive';
-    } else if (i <= 2) {
+    }
+    // Default: first few sections are exploration, later ones get classified by content
+    else if (i <= 2) {
       type = 'exploration';
+    } else {
+      // Content-based heuristic for unclassified sections
+      const bodyLower = body.toLowerCase();
+      if (items.length >= 3 && contentLines.length <= 2) {
+        type = 'facts'; // Mostly bullet points = facts section
+      } else if (/\d+\.\s/.test(body) && (bodyLower.includes('step') || bodyLower.includes('grab') || bodyLower.includes('try'))) {
+        type = 'challenge'; // Numbered steps with action words = challenge
+      } else if (bodyLower.includes('year') || bodyLower.includes('century') || bodyLower.includes('ancient') || bodyLower.includes('history')) {
+        type = 'exploration'; // Historical content
+      } else {
+        type = 'deepdive'; // Default for middle sections
+      }
     }
     
     if (content || items.length > 0) {
@@ -237,69 +318,70 @@ const branchColors = [
 // ─── FALLBACK CONTENT ───
 
 function generateFallbackContent(firstName: string, topic: string): LessonSection[] {
+  // Even the fallback avoids template language — uses specific, varied phrasing
+  const topicCap = topic.charAt(0).toUpperCase() + topic.slice(1);
   return [
     {
       type: 'hook',
       title: '',
-      content: `Hey ${firstName} — here's something most people don't know about ${topic}. It's way more connected to the real world than you'd think. Behind every part of ${topic}, there are patterns, stories, and ideas that connect to science, history, math, and design.\n\nOnce you start seeing those connections, you can't unsee them. Ready?`,
+      content: `${firstName}, here's something that might change how you think about ${topic} forever. Most people walk right past the most interesting parts without even noticing.\n\nBut once someone points them out? You can never unsee them.`,
     },
     {
       type: 'exploration',
-      title: `Where It All Started`,
-      content: `${topic.charAt(0).toUpperCase() + topic.slice(1)} didn't just appear out of nowhere. Like everything fascinating, it has a story — one that connects to real people, real places, and real moments that changed things.\n\nWhen you dig into how ${topic} actually evolved, you find connections everywhere. The way materials behave, the way people innovated, the way culture shifted — it's all woven together.\n\nThe people who really understand ${topic} aren't just fans. They're thinkers who notice things other people miss.`,
+      title: `The Real Story Behind ${topicCap}`,
+      content: `Every single thing about ${topic} connects to something bigger — real people who made decisions, real forces at work, real patterns that repeat across history and science.\n\nThe people who truly understand ${topic} don't just know facts about it. They see the invisible web of connections that ties it to everything else. And that's exactly what we're about to do.`,
     },
     {
       type: 'deepdive',
-      title: `What's Really Going On Under the Surface`,
-      content: `Here's where it gets interesting. Everything about ${topic} follows rules — not boring rules, but the kind that explain why things work the way they do.\n\nForces, materials, timing, design — they all play a role. The people who get really good at anything related to ${topic} understand these invisible forces, even if they can't always explain them in words.`,
+      title: `What Nobody Tells You`,
+      content: `Beneath the surface of ${topic}, there are forces and patterns that most people never notice. Not because they're hidden — they're right there in plain sight.\n\nThe difference between someone who casually knows about ${topic} and someone who truly gets it? They've learned to see what's always been there.`,
     },
     {
       type: 'facts',
-      title: `Things That'll Change How You See This`,
+      title: `Wait, Seriously?`,
       content: '',
       items: [
-        `The history of ${topic} goes back way further than most people think — and it started in a completely unexpected way`,
-        `There's real math and science hiding inside ${topic} that engineers and designers use every single day`,
-        `Some of the most successful people in the world got their start by being obsessed with something just like this`,
-        `Your brain actually creates new neural pathways every time you explore something you're genuinely curious about — like right now`,
+        `The origins of ${topic} trace back much further than most people realize — and the starting point is genuinely surprising`,
+        `Real engineers, scientists, and designers use principles from ${topic} in their work every single day`,
+        `The math hiding inside ${topic} connects to patterns found everywhere from galaxies to seashells`,
+        `Right now, as you read this, your brain is forming new neural connections around ${topic} — connections that didn't exist five minutes ago`,
       ],
     },
     {
       type: 'challenge',
-      title: `Your Turn`,
-      content: `Alright ${firstName}, here's something you can actually do right now:`,
+      title: `Your Move`,
+      content: `Here's something you can do right now that most people never think to try:`,
       items: [
-        `Grab a notebook or a piece of paper`,
-        `Write down 3 things you already knew about ${topic} before today`,
-        `Now write down 2 things that surprised you or made you think differently`,
-        `Draw a quick sketch or diagram showing how one concept connects to something else in the real world`,
-        `Share what you discovered with someone — teaching is the fastest way to lock in what you've learned`,
+        `Find a piece of paper and something to write with`,
+        `Sketch out the single most interesting connection you've noticed between ${topic} and something else in your life`,
+        `Write one question about ${topic} that you genuinely don't know the answer to`,
+        `Try explaining what you've discovered to someone nearby — if you can make them say "wait, really?" you've nailed it`,
       ],
     },
     {
       type: 'branches',
-      title: 'Which direction calls to you?',
-      content: 'Now that you\'ve started exploring, where does your curiosity want to go?',
+      title: 'Where to next?',
+      content: '',
       items: [
-        `**Design & Build**: What if you could create your own version of something related to ${topic}? Let's figure out how.`,
-        `**The Business Side**: Ever wonder how people turn a passion for ${topic} into a real career or business?`,
-        `**Go Deeper**: There's hidden science here that even most adults don't know about. Want to see it?`,
+        `**The Maker's Path**: Take what you know and build something real with it — design, prototype, iterate`,
+        `**The Untold Story**: There's a chapter of ${topic}'s history that reads like a thriller. Want to hear it?`,
+        `**The Hidden Science**: The invisible forces at work here will genuinely blow your mind`,
       ],
       branchOptions: [
-        { name: 'Design & Build', description: `Create your own version of something related to ${topic}` },
-        { name: 'The Business Side', description: `How people turn ${topic} into a real career or business` },
-        { name: 'Go Deeper', description: `Hidden science that even most adults don't know about` },
+        { name: "The Maker's Path", description: `Build something real — design, prototype, iterate` },
+        { name: 'The Untold Story', description: `A chapter of ${topic}'s history that reads like a thriller` },
+        { name: 'The Hidden Science', description: `Invisible forces at work that will blow your mind` },
       ],
     },
     {
       type: 'reflection',
-      title: `You're Already Thinking Differently`,
-      content: `Here's what just happened, ${firstName} — you didn't just read about ${topic}. You started seeing it through the eyes of someone who really understands how things work. Engineers think this way. Scientists think this way. Entrepreneurs think this way.\n\nThe fact that you're curious enough to explore this? That's your superpower. Keep following it.`,
+      title: '',
+      content: `${firstName}, what you just did isn't "studying." You connected dots that most people never even see. That's how engineers, scientists, and entrepreneurs think — they look at the same world everyone else sees, but they notice the patterns underneath.`,
     },
     {
       type: 'openloop',
-      title: `But Here's What We Haven't Talked About Yet...`,
-      content: `We barely scratched the surface. There are hidden patterns in ${topic} that connect to things you'd never expect — from the way cities are designed to how your favorite apps work.\n\nWhat do you think would happen if you combined what you know about ${topic} with one of your other interests? That's where the really wild ideas come from...`,
+      title: `One More Thing...`,
+      content: `There's an aspect of ${topic} we haven't even touched yet — one that connects to something you'd never expect. The kind of connection that, once you see it, makes you wonder how you ever missed it.\n\nReady to find out what it is?`,
     },
   ];
 }
@@ -316,27 +398,45 @@ const LessonViewer: React.FC<LessonViewerProps> = ({ module, topic, onComplete, 
   const [loadingBranch, setLoadingBranch] = useState<string | null>(null);
   const [exploredBranches, setExploredBranches] = useState<Set<string>>(new Set());
   const [loadingStep, setLoadingStep] = useState(0);
+  const [loadingPhase, setLoadingPhase] = useState<'analyzing' | 'writing'>('analyzing');
+  const [lessonMeta, setLessonMeta] = useState<LessonPlanMeta | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const firstName = studentProfile.name.split(' ')[0];
   const rawTopic = topic.trim();
 
-  const loadingSteps = [
-    `Digging into everything about ${rawTopic}...`,
-    'Finding the most fascinating angles...',
+  const loadingStepsAnalyzing = [
+    `Understanding what "${rawTopic}" really means to you...`,
+    'Mapping connections across science, history, and math...',
+    'Checking what you already know...',
+    'Finding the perfect angle for this lesson...',
+  ];
+
+  const loadingStepsWriting = [
+    'Crafting something unique just for you...',
     'Weaving in some mind-blowing connections...',
     'Building your branching adventure...',
+    'Adding the finishing touches...',
     'Almost ready — this is going to be good...',
   ];
+
+  const currentLoadingSteps = loadingPhase === 'analyzing' ? loadingStepsAnalyzing : loadingStepsWriting;
 
   useEffect(() => {
     if (loading || loadingBranch) {
       const interval = setInterval(() => {
-        setLoadingStep(prev => (prev + 1) % loadingSteps.length);
-      }, 2200);
+        setLoadingStep(prev => {
+          const next = (prev + 1) % currentLoadingSteps.length;
+          // Switch to writing phase after cycling through analysis steps
+          if (loadingPhase === 'analyzing' && next === 0 && prev > 0) {
+            setLoadingPhase('writing');
+          }
+          return next;
+        });
+      }, 2400);
       return () => clearInterval(interval);
     }
-  }, [loading, loadingBranch]);
+  }, [loading, loadingBranch, loadingPhase, currentLoadingSteps.length]);
 
   useEffect(() => {
     generateContent();
@@ -363,6 +463,8 @@ const LessonViewer: React.FC<LessonViewerProps> = ({ module, topic, onComplete, 
 
   const generateContent = async () => {
     setLoading(true);
+    setLoadingPhase('analyzing');
+    setLoadingStep(0);
     try {
       const { data, error: fnError } = await supabase.functions.invoke('mentor-chat', {
         body: {
@@ -393,6 +495,11 @@ const LessonViewer: React.FC<LessonViewerProps> = ({ module, topic, onComplete, 
       if (fnError) throw new Error(fnError.message);
       const responseText = data?.message || '';
       if (!responseText.trim()) throw new Error('Empty response');
+
+      // Store lesson plan metadata
+      if (data?.lessonPlan) {
+        setLessonMeta(data.lessonPlan);
+      }
 
       const parsed = parseMarkdownToSections(responseText);
       setSegments([{ sections: parsed }]);
@@ -477,6 +584,14 @@ const LessonViewer: React.FC<LessonViewerProps> = ({ module, topic, onComplete, 
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-body font-semibold ${module.subject_color || 'bg-gray-100 text-gray-700'}`}>
                     {module.subject_display}
                   </span>
+                  {lessonMeta?.structure_style && structureLabels[lessonMeta.structure_style] && (
+                    <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-body font-semibold bg-indigo-50 text-indigo-600">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d={structureLabels[lessonMeta.structure_style].icon} />
+                      </svg>
+                      {structureLabels[lessonMeta.structure_style].label}
+                    </span>
+                  )}
                   <span className="font-body text-xs text-charcoal/40">{module.time_estimate_minutes} min</span>
                 </div>
               </div>
@@ -505,17 +620,57 @@ const LessonViewer: React.FC<LessonViewerProps> = ({ module, topic, onComplete, 
                   <div className="absolute inset-0 border-4 border-teal border-t-transparent rounded-full animate-spin" />
                   <img src={OWL_IMG} alt="" className="absolute inset-2 rounded-full object-cover" />
                 </div>
-                <h3 className="font-heading font-bold text-xl text-charcoal mb-2">Building Your Adventure</h3>
-                <p className="font-body text-sm text-charcoal/50 mb-4">{loadingSteps[loadingStep]}</p>
+                {/* Two-phase loading indicator */}
+                <div className="flex items-center justify-center gap-3 mb-4">
+                  <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-body font-semibold transition-all ${
+                    loadingPhase === 'analyzing' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'
+                  }`}>
+                    {loadingPhase === 'analyzing' ? (
+                      <>
+                        <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="10" strokeOpacity="0.3"/><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+                        Analyzing topic
+                      </>
+                    ) : (
+                      <>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        Topic analyzed
+                      </>
+                    )}
+                  </div>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="2" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                  <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-body font-semibold transition-all ${
+                    loadingPhase === 'writing' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-charcoal/30'
+                  }`}>
+                    {loadingPhase === 'writing' ? (
+                      <>
+                        <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="10" strokeOpacity="0.3"/><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+                        Writing lesson
+                      </>
+                    ) : (
+                      'Writing lesson'
+                    )}
+                  </div>
+                </div>
+                <p className="font-body text-sm text-charcoal/50 mb-4">{currentLoadingSteps[loadingStep % currentLoadingSteps.length]}</p>
                 <div className="flex justify-center gap-1.5">
-                  {loadingSteps.map((_, i) => (
-                    <div key={i} className={`w-2 h-2 rounded-full transition-all duration-300 ${i === loadingStep ? 'bg-teal scale-125' : i < loadingStep ? 'bg-teal/40' : 'bg-gray-200'}`} />
+                  {currentLoadingSteps.map((_, i) => (
+                    <div key={i} className={`w-2 h-2 rounded-full transition-all duration-300 ${i === loadingStep % currentLoadingSteps.length ? 'bg-teal scale-125' : i < loadingStep % currentLoadingSteps.length ? 'bg-teal/40' : 'bg-gray-200'}`} />
                   ))}
                 </div>
               </div>
             </div>
           ) : (
             <div className="px-4 sm:px-8 py-6">
+              {/* Mentor's perspective on this lesson - subtle, not school-like */}
+              {lessonMeta?.focus_angle && (
+                <div className="mb-6 flex items-start gap-3 p-4 bg-gradient-to-r from-white to-teal-50/30 rounded-xl border border-gray-100">
+                  <img src={OWL_IMG} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-0.5 border border-teal/20" />
+                  <p className="font-body text-xs text-charcoal/60 leading-relaxed italic">
+                    "{lessonMeta.focus_angle}"
+                  </p>
+                </div>
+              )}
+
               {/* All segments */}
               {segments.map((segment, segIdx) => (
                 <div key={segIdx} id={`segment-${segIdx}`}>
@@ -611,7 +766,7 @@ const LessonViewer: React.FC<LessonViewerProps> = ({ module, topic, onComplete, 
                                   </div>
                                   <div>
                                     <p className="font-heading font-bold text-xs text-indigo-700">Exploring "{loadingBranch}"...</p>
-                                    <p className="font-body text-[11px] text-indigo-400">{loadingSteps[loadingStep]}</p>
+                                    <p className="font-body text-[11px] text-indigo-400">Crafting a fresh perspective...</p>
                                   </div>
                                 </div>
                               )}
@@ -643,7 +798,7 @@ const LessonViewer: React.FC<LessonViewerProps> = ({ module, topic, onComplete, 
                           )}
 
                           {section.items && section.items.length > 0 && (
-                            <ul className={`mt-3 space-y-2 ${section.content ? '' : ''}`}>
+                            <ul className={`mt-3 space-y-2`}>
                               {section.items.map((item, ii) => (
                                 <li key={ii} className="flex items-start gap-2.5">
                                   <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${style.iconBg}`}>

@@ -511,7 +511,8 @@ const AdminPayments: React.FC = () => {
                     <div className="space-y-3">
                       <div className="p-3 bg-red-50 rounded-lg border border-red-200">
                         <p className="font-body text-xs font-bold text-red-700">Warning: Switching to live mode will process real payments.</p>
-                        <p className="font-body text-[10px] text-red-600 mt-1">Ensure your GATEWAY_API_KEY is configured with a valid FamousPay API key.</p>
+                        <p className="font-body text-[10px] text-red-600 mt-1">Ensure your FAMOUSPAY_SECRET_KEY is configured with a valid FamousPay API key.</p>
+
                       </div>
                       <div>
                         <label className="font-body text-xs font-semibold text-charcoal/60 mb-1 block">Type "ENABLE LIVE PAYMENTS" to confirm:</label>

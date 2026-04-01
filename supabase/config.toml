@@ -1,0 +1,46 @@
+# Supabase CLI configuration
+# Docs: https://supabase.com/docs/guides/cli/config
+
+[project]
+id = "jelhetcesvqjyfhnuxyb"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://localhost"
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+
+[functions]
+# Edge functions configuration
+# All functions use --no-verify-jwt for deployment
+# Secret required at runtime: OPENAI_API_KEY (OpenAI direct)
+
+
+[functions.mentor-chat]
+verify_jwt = false
+
+[functions.build-student-avatar]
+verify_jwt = false
+
+[functions.generate-learning-path]
+verify_jwt = false
+
+[functions.analyze-records]
+verify_jwt = false
+
+[functions.generate-report]
+verify_jwt = false
