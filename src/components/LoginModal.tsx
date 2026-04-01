@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Logo from './Logo';
 import { useAppContext } from '@/contexts/AppContext';
 import { useAuth, AuthRole } from '@/contexts/AuthContext';
+import { isSupabaseConfigured } from '@/lib/supabase';
 
 type ModalView = 'login' | 'signup' | 'reset' | 'verify' | 'child-setup';
 
@@ -231,7 +232,33 @@ const LoginModal: React.FC = () => {
         </button>
 
         <div className="p-8">
-          {/* ===== SIGN IN VIEW ===== */}
+          {/* Configuration warning banner */}
+          {!isSupabaseConfigured && (
+            <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <div className="flex items-start gap-2.5">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                <div>
+                  <p className="font-body text-sm font-bold text-amber-800 mb-1">Supabase not configured</p>
+                  <p className="font-body text-xs text-amber-700 leading-relaxed">
+                    The Supabase anon key is still a placeholder. To enable login, create a{' '}
+                    <code className="bg-amber-100 px-1 py-0.5 rounded text-[11px] font-mono">.env.local</code>{' '}
+                    file in the project root with:
+                  </p>
+                  <pre className="mt-2 p-2 bg-amber-100/60 rounded-lg text-[11px] font-mono text-amber-900 leading-relaxed overflow-x-auto">
+{`VITE_SUPABASE_URL=https://jelhetcesvqjyfhnuxyb.supabase.co
+VITE_SUPABASE_ANON_KEY=your-real-anon-key`}
+                  </pre>
+                  <p className="font-body text-xs text-amber-700 mt-1.5">
+                    Then restart the dev server (<code className="bg-amber-100 px-1 py-0.5 rounded text-[11px] font-mono">npm run dev</code>).
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {view === 'login' && (
             <>
               <div className="text-center mb-6">

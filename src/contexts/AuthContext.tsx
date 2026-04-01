@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export type AuthRole = 'parent' | 'educator' | 'student';
 
@@ -169,6 +169,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     role: AuthRole,
     schoolName?: string
   ): Promise<{ error: string | null; needsVerification: boolean }> => {
+    if (!isSupabaseConfigured) {
+      return { error: 'Supabase is not configured yet. Please add your anon key to .env.local and restart the dev server. See the browser console for instructions.', needsVerification: false };
+    }
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -199,11 +202,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { error: null, needsVerification: false };
     } catch (err: any) {
-      return { error: err.message || 'Sign up failed', needsVerification: false };
+      const msg = err?.message || '';
+      if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror') || msg.toLowerCase().includes('fetch')) {
+        return { error: 'Unable to connect to the server. Check that your Supabase anon key is set correctly in .env.local and restart the dev server.', needsVerification: false };
+      }
+      return { error: msg || 'Sign up failed', needsVerification: false };
     }
   };
 
   const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
+    if (!isSupabaseConfigured) {
+      return { error: 'Supabase is not configured yet. Please add your anon key to .env.local and restart the dev server. See the browser console for instructions.' };
+    }
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -222,9 +232,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { error: null };
     } catch (err: any) {
-      return { error: err.message || 'Sign in failed' };
+      const msg = err?.message || '';
+      if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror') || msg.toLowerCase().includes('fetch')) {
+        return { error: 'Unable to connect to the server. Check that your Supabase anon key is set correctly in .env.local and restart the dev server.' };
+      }
+      return { error: msg || 'Sign in failed' };
     }
   };
+
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -234,6 +249,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetPassword = async (email: string): Promise<{ error: string | null; success: boolean }> => {
+    if (!isSupabaseConfigured) {
+      return { error: 'Supabase is not configured yet. Please add your anon key to .env.local and restart the dev server. See the browser console for instructions.', success: false };
+    }
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: window.location.origin,
@@ -245,9 +263,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { error: null, success: true };
     } catch (err: any) {
-      return { error: err.message || 'Password reset failed', success: false };
+      const msg = err?.message || '';
+      if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror') || msg.toLowerCase().includes('fetch')) {
+        return { error: 'Unable to connect to the server. Check that your Supabase anon key is set correctly in .env.local and restart the dev server.', success: false };
+      }
+      return { error: msg || 'Password reset failed', success: false };
     }
   };
+
 
   const updateProfile = async (updates: Partial<UserProfile>): Promise<{ error: string | null }> => {
     if (!user?.id) return { error: 'Not authenticated' };
