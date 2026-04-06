@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import Logo from './Logo';
 import { useAppContext } from '@/contexts/AppContext';
 import { useAuth, AuthRole } from '@/contexts/AuthContext';
-import { isSupabaseConfigured } from '@/lib/supabase';
 
 type ModalView = 'login' | 'signup' | 'reset' | 'verify' | 'child-setup';
 
@@ -78,10 +77,8 @@ const LoginModal: React.FC = () => {
 
     // Success - auth state change will update profile
     setLoading(false);
-    // Small delay to let profile load
     setTimeout(() => {
       closeModal();
-      // Navigate based on role - will be set by AppContext sync
     }, 600);
   };
 
@@ -130,7 +127,6 @@ const LoginModal: React.FC = () => {
       return;
     }
 
-    // Signed up and auto-signed in
     setLoading(false);
     setTimeout(() => {
       closeModal();
@@ -211,7 +207,6 @@ const LoginModal: React.FC = () => {
       value: 'student',
       label: 'Student',
       desc: 'I\'m an explorer (13+ only)',
-
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M22 10v6M2 10l10-5 10 5-10 5z" /><path d="M6 12v5c0 2 4 3 6 3s6-1 6-3v-5" />
@@ -232,40 +227,12 @@ const LoginModal: React.FC = () => {
         </button>
 
         <div className="p-8">
-          {/* Configuration warning banner */}
-          {!isSupabaseConfigured && (
-            <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-              <div className="flex items-start gap-2.5">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                  <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-                <div>
-                  <p className="font-body text-sm font-bold text-amber-800 mb-1">Supabase not configured</p>
-                  <p className="font-body text-xs text-amber-700 leading-relaxed">
-                    The Supabase anon key is still a placeholder. To enable login, create a{' '}
-                    <code className="bg-amber-100 px-1 py-0.5 rounded text-[11px] font-mono">.env.local</code>{' '}
-                    file in the project root with:
-                  </p>
-                  <pre className="mt-2 p-2 bg-amber-100/60 rounded-lg text-[11px] font-mono text-amber-900 leading-relaxed overflow-x-auto">
-{`VITE_SUPABASE_URL=https://jelhetcesvqjyfhnuxyb.supabase.co
-VITE_SUPABASE_ANON_KEY=your-real-anon-key`}
-                  </pre>
-                  <p className="font-body text-xs text-amber-700 mt-1.5">
-                    Then restart the dev server (<code className="bg-amber-100 px-1 py-0.5 rounded text-[11px] font-mono">npm run dev</code>).
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {view === 'login' && (
             <>
               <div className="text-center mb-6">
                 <div className="flex justify-center mb-3"><Logo size="md" /></div>
                 <h2 className="font-heading font-bold text-2xl text-charcoal">Welcome back</h2>
                 <p className="font-body text-sm text-charcoal/50 mt-1">Continue your adventure</p>
-
               </div>
 
               <form onSubmit={handleSignIn} className="space-y-4">
@@ -382,7 +349,7 @@ VITE_SUPABASE_ANON_KEY=your-real-anon-key`}
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 font-body text-sm focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal transition-all"
-                    placeholder={role === 'educator' ? 'Your name' : role === 'student' ? 'Your name' : 'Your name'}
+                    placeholder="Your name"
                     required
                     autoComplete="name"
                   />
@@ -440,6 +407,7 @@ VITE_SUPABASE_ANON_KEY=your-real-anon-key`}
                     autoComplete="new-password"
                   />
                 </div>
+
                 {role === 'student' && (
                   <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl">
                     <p className="font-body text-xs text-amber-700">
@@ -447,7 +415,6 @@ VITE_SUPABASE_ANON_KEY=your-real-anon-key`}
                     </p>
                   </div>
                 )}
-
 
                 {error && (
                   <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
@@ -620,7 +587,6 @@ VITE_SUPABASE_ANON_KEY=your-real-anon-key`}
                   Set up a profile for your child
                 </p>
               </div>
-
 
               <form onSubmit={handleCreateChild} className="space-y-4">
                 <div>

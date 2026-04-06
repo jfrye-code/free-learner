@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 export type AuthRole = 'parent' | 'educator' | 'student';
 
@@ -57,6 +57,42 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 export const useAuth = () => useContext(AuthContext);
+
+// ---------------------------------------------------------------------------
+// Translate raw Supabase / network errors into user-friendly messages
+// ---------------------------------------------------------------------------
+function friendlyError(raw?: string): string {
+  if (!raw) return 'Something went wrong. Please try again.';
+  const lower = raw.toLowerCase();
+
+  // Network-level failures (invalid API key, no internet, CORS, etc.)
+  if (lower.includes('failed to fetch') || lower.includes('networkerror') || lower.includes('load failed')) {
+    return 'Unable to reach the server. Please check your internet connection and try again.';
+  }
+  // Invalid API key (wrong anon key configured)
+  if (lower.includes('invalid api key') || lower.includes('apikey')) {
+    return 'Server configuration error. Please contact support.';
+  }
+  // Auth-specific
+  if (lower.includes('invalid login credentials')) {
+    return 'Invalid email or password. Please try again.';
+  }
+  if (lower.includes('email not confirmed')) {
+    return 'Please check your email and confirm your account before signing in.';
+  }
+  if (lower.includes('user already registered')) {
+    return 'An account with this email already exists. Try signing in instead.';
+  }
+  if (lower.includes('password') && lower.includes('at least')) {
+    return raw; // Already descriptive
+  }
+  if (lower.includes('rate limit') || lower.includes('too many requests')) {
+    return 'Too many attempts. Please wait a moment and try again.';
+  }
+
+  // Fall through – return the original message
+  return raw;
+}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<any | null>(null);
@@ -162,6 +198,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [fetchProfile, fetchChildren]);
 
+  // -----------------------------------------------------------------------
+  // Auth methods – no pre-flight guards; let Supabase respond naturally
+  // -----------------------------------------------------------------------
+
   const signUp = async (
     email: string,
     password: string,
@@ -169,9 +209,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     role: AuthRole,
     schoolName?: string
   ): Promise<{ error: string | null; needsVerification: boolean }> => {
-    if (!isSupabaseConfigured) {
-      return { error: 'Supabase is not configured yet. Please add your anon key to .env.local and restart the dev server. See the browser console for instructions.', needsVerification: false };
-    }
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -186,7 +223,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
-        return { error: error.message, needsVerification: false };
+        return { error: friendlyError(error.message), needsVerification: false };
       }
 
       if (data.user && !data.session) {
@@ -202,44 +239,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { error: null, needsVerification: false };
     } catch (err: any) {
-      const msg = err?.message || '';
-      if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror') || msg.toLowerCase().includes('fetch')) {
-        return { error: 'Unable to connect to the server. Check that your Supabase anon key is set correctly in .env.local and restart the dev server.', needsVerification: false };
-      }
-      return { error: msg || 'Sign up failed', needsVerification: false };
+      return { error: friendlyError(err?.message), needsVerification: false };
     }
   };
 
   const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
-    if (!isSupabaseConfigured) {
-      return { error: 'Supabase is not configured yet. Please add your anon key to .env.local and restart the dev server. See the browser console for instructions.' };
-    }
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          return { error: 'Invalid email or password. Please try again.' };
-        }
-        if (error.message.includes('Email not confirmed')) {
-          return { error: 'Please check your email and confirm your account before signing in.' };
-        }
-        return { error: error.message };
+        return { error: friendlyError(error.message) };
       }
 
       return { error: null };
     } catch (err: any) {
-      const msg = err?.message || '';
-      if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror') || msg.toLowerCase().includes('fetch')) {
-        return { error: 'Unable to connect to the server. Check that your Supabase anon key is set correctly in .env.local and restart the dev server.' };
-      }
-      return { error: msg || 'Sign in failed' };
+      return { error: friendlyError(err?.message) };
     }
   };
-
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -249,28 +265,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetPassword = async (email: string): Promise<{ error: string | null; success: boolean }> => {
-    if (!isSupabaseConfigured) {
-      return { error: 'Supabase is not configured yet. Please add your anon key to .env.local and restart the dev server. See the browser console for instructions.', success: false };
-    }
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: window.location.origin,
       });
 
       if (error) {
-        return { error: error.message, success: false };
+        return { error: friendlyError(error.message), success: false };
       }
 
       return { error: null, success: true };
     } catch (err: any) {
-      const msg = err?.message || '';
-      if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror') || msg.toLowerCase().includes('fetch')) {
-        return { error: 'Unable to connect to the server. Check that your Supabase anon key is set correctly in .env.local and restart the dev server.', success: false };
-      }
-      return { error: msg || 'Password reset failed', success: false };
+      return { error: friendlyError(err?.message), success: false };
     }
   };
-
 
   const updateProfile = async (updates: Partial<UserProfile>): Promise<{ error: string | null }> => {
     if (!user?.id) return { error: 'Not authenticated' };
@@ -393,7 +401,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) return { error: error.message };
       if (data?.error) return { error: data.error };
 
-      // Sign out locally after account deletion
       setUser(null);
       setProfile(null);
       setChildAccounts([]);

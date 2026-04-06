@@ -1,18 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
 // ---------------------------------------------------------------------------
-// Supabase connection config
+// Supabase connection
 // ---------------------------------------------------------------------------
-// Option A (recommended): set these in a .env or .env.local file at the
-//   project root so they are never committed to source control:
+// The anon key is safe to embed in client-side code – it only grants access
+// that Row Level Security (RLS) policies explicitly allow.
 //
+// To override at build time, set these environment variables:
 //   VITE_SUPABASE_URL=https://jelhetcesvqjyfhnuxyb.supabase.co
-//   VITE_SUPABASE_ANON_KEY=eyJhbGciOi...your-real-key...
+//   VITE_SUPABASE_ANON_KEY=eyJhbGciOi...
 //
-// Option B: replace the fallback strings below directly (less secure).
+// In production hosting (Vercel, Netlify, etc.), add them as env vars in the
+// dashboard so they are baked in at build time.
 // ---------------------------------------------------------------------------
-
-const PLACEHOLDER_SIGNATURE = 'placeholder-replace-with-your-actual-anon-key';
 
 const supabaseUrl =
   import.meta.env.VITE_SUPABASE_URL ||
@@ -20,25 +20,7 @@ const supabaseUrl =
 
 const supabaseKey: string =
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImplbGhldGNlc3ZxanlmaG51eHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyOTEzMTUsImV4cCI6MjA4OTY1MTMxNX0.${PLACEHOLDER_SIGNATURE}`;
-
-// Runtime check – lets calling code show a helpful message instead of a
-// cryptic "Failed to fetch" error.
-export const isSupabaseConfigured = !supabaseKey.endsWith(PLACEHOLDER_SIGNATURE);
-
-if (!isSupabaseConfigured) {
-  console.warn(
-    '\n⚠️  Supabase anon key is still a placeholder!\n' +
-    '   Login, signup, and all database features will fail.\n\n' +
-    '   To fix:\n' +
-    '   1. Go to your Supabase dashboard → Settings → API\n' +
-    '   2. Copy the "anon public" key\n' +
-    '   3. Create a .env.local file in the project root with:\n\n' +
-    '      VITE_SUPABASE_URL=https://jelhetcesvqjyfhnuxyb.supabase.co\n' +
-    '      VITE_SUPABASE_ANON_KEY=<paste-your-real-key-here>\n\n' +
-    '   4. Restart the dev server (npm run dev)\n'
-  );
-}
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImplbGhldGNlc3ZxanlmaG51eHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyOTEzMTUsImV4cCI6MjA4OTY1MTMxNX0.placeholder-replace-with-your-actual-anon-key';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
